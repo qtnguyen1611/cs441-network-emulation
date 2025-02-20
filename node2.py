@@ -6,15 +6,14 @@ N2_MAC = "N2"
 N2_IP = 0x2A
 
 shutdown_event = threading.Event()
+peers = [("127.0.0.1", 1511), ('127.0.0.1', 1530)]  # IP and port of node1 and node3
 
-def handle_client(client_socket):
+def handle_peer(sock):
     while not shutdown_event.is_set():
         try:
-            frame = client_socket.recv(260)
+            frame, addr = sock.recvfrom(260)
             if frame:
                 handle_frame(frame)
-            else:
-                break
         except Exception as e:
             print(f"Error: {e}")
             break
@@ -49,17 +48,18 @@ def handle_ip_packet(packet):
 def send_ip_packet(packet):
     frame = N2_MAC.encode() + "R2".encode() + bytes([len(packet)]) + packet
     print(f"Sending frame: {frame.hex()}")
-    s.sendall(frame)
+    for peer in peers:
+        sock.sendto(frame, peer)
 
 def start_node():
     host = '127.0.0.1'
     port = 1510
 
-    global s
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host, port))
+    global sock
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((host, port))
 
-    threading.Thread(target=handle_client, args=(s,)).start()
+    threading.Thread(target=handle_peer, args=(sock,)).start()
 
     print("Hello! Welcome to the chatroom.\n")
     print("Instructions:\n")
@@ -74,7 +74,7 @@ def start_node():
                 packet = bytes([N2_IP, dst_ip, 0, len(message)]) + message.encode()
                 send_ip_packet(packet)
 
-    s.close()
+    sock.close()
 
 if __name__ == "__main__":
     try:
