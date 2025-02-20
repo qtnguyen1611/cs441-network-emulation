@@ -50,9 +50,12 @@ def handle_frame(frame, interface):
     print(f"Received frame on {interface}: {frame.hex()}")
 
     if dst_mac == R1_MAC or dst_mac == R2_MAC:
-        handle_ip_packet(data, interface)
+        print(f"Received frame for me on {interface}: {frame.hex()}")
+        # handle_ip_packet(data, interface)
     else:
-        broadcast_frame(frame, interface)
+        # do nothing
+        pass
+        # broadcast_frame(frame, interface)
 
 def handle_ip_packet(packet, interface):
     src_ip = packet[0]

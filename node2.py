@@ -32,6 +32,14 @@ shutdown_event = threading.Event()
 peers = [("127.0.0.1", 1511), ('127.0.0.1', 1530)]  # IP and port of node1 and node3
 
 def handle_peer(sock):
+    """
+    Handles a peer connection. This function is run in a separate thread and
+    responsible for receiving Ethernet frames from the socket and passing them to
+    handle_frame.
+
+    Args:
+        sock (socket.socket): The socket object to receive frames from
+    """
     while not shutdown_event.is_set():
         try:
             frame, addr = sock.recvfrom(260)
@@ -47,10 +55,12 @@ def handle_frame(frame):
     data_length = frame[4]
     data = frame[5:5+data_length]
 
-    print(f"Received frame: {frame.hex()}")
+    print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}")
+    print(f"Message: {data.decode()}")
 
     if dst_mac == N2_MAC:
-        handle_ip_packet(data)
+        print(f"Received frame for me: {frame.hex()}, from {src_mac}, message: {data.decode()}")
+        # handle_ip_packet(data)
     else:
         print(f"Dropped frame: {frame.hex()}")
 
@@ -82,19 +92,29 @@ def send_ip_packet(packet):
     for peer in peers:
         sock.sendto(frame, peer)
 
-def send_ethernet_frame(broadcast_message):
+def send_ethernet_frame(userEnteredMacAddr, broadcast_message):
     """
-    Broadcasts an Ethernet frame with the given message to all MAC addresses in the ARP table
-    that have a corresponding port in the port table.
+    Sends an Ethernet frame containing a broadcast message to a node with the
+    specified MAC address.
 
-    :param broadcast_message: The message to send as the payload of the Ethernet frame.
+    This function takes in a MAC address and a broadcast message as arguments. It
+    checks if the MAC address is in the ARP table and encodes the message along
+    with the necessary headers and sends it to the destination MAC address that
+    is present in the port table.
+
+    Args:
+        userEnteredMacAddr (str): The MAC address of the node to send the message to.
+        broadcast_message (str): The message to be broadcasted to the node.
     """
     for macAddr in arp_table.values(): 
-        etherFrame = N2_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
-        if macAddr in port_table.keys():
-            print(f"Sending Ethernet Frame to {macAddr}")
-            print(f"Destination Port: {port_table[macAddr]}")
-            sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
+        print(f"ARP Table MAC Address: {macAddr}")
+        if userEnteredMacAddr == macAddr:
+            etherFrame = N2_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
+        
+    # Broadcast to all nodes
+    for macAddr in port_table.keys():
+        print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame}")
+        sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
 
 def start_node():
     host = '127.0.0.1'
@@ -109,7 +129,7 @@ def start_node():
     print("Hello! Welcome to the chatroom.\n")
     print("Instructions:\n")
     print("  1. Type 'send <destination IP> <message>' to send a message to a specific node\n")
-    print("  2. Type 'broadcast <message>' to broadcast a message to all nodes within the network\n")
+    print("  2. Type 'ethernet <destination MAC> <message>' to send a message to specified node\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
@@ -120,9 +140,9 @@ def start_node():
                 packet = bytes([N2_IP, dst_ip, 0, len(message)]) + message.encode()
                 print(packet)
                 send_ip_packet(packet)
-            elif userinput.startswith("broadcast"):
-                _, broadcast_message = userinput.split(" ", 2)
-                send_ethernet_frame(broadcast_message)
+            elif userinput.startswith("ethernet"):
+                _, macAddr, broadcast_message = userinput.split(" ", 2)
+                send_ethernet_frame(macAddr, broadcast_message)
 
     sock.close()
 
