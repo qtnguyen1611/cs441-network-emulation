@@ -9,6 +9,19 @@ R2_MAC = "R2"
 R1_IP = 0x11
 R2_IP = 0x21
 
+# ARP Table
+arp_table = {
+    # IP: MAC
+    
+    # Node 1
+    0x11: "N1",
+    
+    # Node2
+    0x2A: "N2",
+    # Node3
+    0x2B: "N3",
+}
+
 shutdown_event = threading.Event()
 peers = [("127.0.0.1", 1500), ("127.0.0.1", 1510), ("127.0.0.1", 1511)]  # IP and port of node1, node2, and node3
 

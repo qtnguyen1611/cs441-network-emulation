@@ -5,6 +5,14 @@ import threading
 N1_MAC = "N1"
 N1_IP = 0x1A
 
+# ARP Table
+arp_table = {
+    # IP: MAC
+    
+    # Router
+    0x11: "R1"
+}
+
 shutdown_event = threading.Event()
 peers = [('127.0.0.1', 1520)]  # IP and port of node2 and node3
 

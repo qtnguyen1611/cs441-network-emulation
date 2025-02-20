@@ -5,6 +5,16 @@ import threading
 N3_MAC = "N3"
 N3_IP = 0x2B
 
+# ARP Table
+arp_table = {
+    # IP: MAC
+    
+    # Node2
+    0x2A: "N2",
+    # Router
+    0x21: "R2"
+}
+
 shutdown_event = threading.Event()
 peers = [("127.0.0.1", 1510), ('127.0.0.1', 1530)]  # IP and port of node1 and node2
 
@@ -25,6 +35,7 @@ def handle_frame(frame):
     data = frame[5:5+data_length]
 
     print(f"Received frame: {frame.hex()}")
+    print(f"dst_mac: {dst_mac}")
 
     if dst_mac == N3_MAC:
         handle_ip_packet(data)
