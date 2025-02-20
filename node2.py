@@ -15,7 +15,20 @@ arp_table = {
     0x21: "R2"
 }
 
+# Port Table / the Peers we are sending to
+# Have to ensure the MAC -> Port mapping is correct
+port_table = {
+    # MAC : Socket
+    
+    # Router
+    "R2": 1530,
+    # Node 3
+    "N3": 1511
+}
+
 shutdown_event = threading.Event()
+
+# Technically can be removed
 peers = [("127.0.0.1", 1511), ('127.0.0.1', 1530)]  # IP and port of node1 and node3
 
 def handle_peer(sock):
@@ -69,6 +82,20 @@ def send_ip_packet(packet):
     for peer in peers:
         sock.sendto(frame, peer)
 
+def send_ethernet_frame(broadcast_message):
+    """
+    Broadcasts an Ethernet frame with the given message to all MAC addresses in the ARP table
+    that have a corresponding port in the port table.
+
+    :param broadcast_message: The message to send as the payload of the Ethernet frame.
+    """
+    for macAddr in arp_table.values(): 
+        etherFrame = N2_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
+        if macAddr in port_table.keys():
+            print(f"Sending Ethernet Frame to {macAddr}")
+            print(f"Destination Port: {port_table[macAddr]}")
+            sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
+
 def start_node():
     host = '127.0.0.1'
     port = 1510
@@ -82,6 +109,7 @@ def start_node():
     print("Hello! Welcome to the chatroom.\n")
     print("Instructions:\n")
     print("  1. Type 'send <destination IP> <message>' to send a message to a specific node\n")
+    print("  2. Type 'broadcast <message>' to broadcast a message to all nodes within the network\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
@@ -92,6 +120,9 @@ def start_node():
                 packet = bytes([N2_IP, dst_ip, 0, len(message)]) + message.encode()
                 print(packet)
                 send_ip_packet(packet)
+            elif userinput.startswith("broadcast"):
+                _, broadcast_message = userinput.split(" ", 2)
+                send_ethernet_frame(broadcast_message)
 
     sock.close()
 

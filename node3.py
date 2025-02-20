@@ -36,12 +36,14 @@ def handle_frame(frame):
 
     print(f"Received frame: {frame.hex()}")
     print(f"dst_mac: {dst_mac}")
+    print(f"Message: {data.decode()}")
 
     if dst_mac == N3_MAC:
         handle_ip_packet(data)
     else:
         print(f"Dropped frame: {frame.hex()}")
 
+# To Fix
 def handle_ip_packet(packet):
     src_ip = packet[0]
     dst_ip = packet[1]
