@@ -77,7 +77,8 @@ def handle_frame(frame):
     # Check the first byte & second byte has '0x' in it 
     checkSrcIP = hex(struct.unpack('B', data[0:1])[0])
     checkDestIP = hex(struct.unpack('B', data[1:2])[0])
-    if checkSrcIP[:2] == '0x' and checkDestIP[:2] == '0x':
+    # Check if it is an IP Packet and the destination MAC is N2
+    if checkSrcIP[:2] == '0x' and checkDestIP[:2] == '0x' and dst_mac == N2_MAC:
         # It is a IP Packet and let the IP Layer handle it
         print(f"IP Packet Detected")
         handle_ip_packet(data)
@@ -121,11 +122,11 @@ def handle_ip_packet(packet):
         # Add it to the map and set the value as 1
         pingReplyMap[src_ip] = 1
         send_ip_packet(src_ip, data)
-    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
-        # Increment the counter
-        pingReplyMap[src_ip] += 1
-        send_ip_packet(src_ip, data)
-    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] == 2:
+    # elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
+    #     # Increment the counter
+    #     pingReplyMap[src_ip] += 1
+    #     send_ip_packet(src_ip, data)
+    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] == 1:
         # Remove the IP from the Ping Counter Map
         print(f"Duplicate Ping Packet, dropping packet")
         del pingReplyMap[src_ip]
