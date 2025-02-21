@@ -54,6 +54,7 @@ def handle_frame(frame, interface):
         # handle_ip_packet(data, interface)
     else:
         # do nothing
+        print(f"Dropped frame on {interface}: {frame.hex()}")
         pass
         # broadcast_frame(frame, interface)
 
