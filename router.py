@@ -1,4 +1,5 @@
 import socket
+import struct
 import threading
 
 # Router's MAC addresses
@@ -6,8 +7,8 @@ R1_MAC = "R1"
 R2_MAC = "R2"
 
 # Router's IP addresses
-R1_IP = 0x11
-R2_IP = 0x21
+R1_IP = "0x11"
+R2_IP = "0x21"
 
 # ARP Table
 arp_table = {
@@ -20,16 +21,24 @@ arp_table = {
     "0x2A": "N2",
     # Node3
     "0x2B": "N3",
+    R1_IP: R1_MAC,
+    R2_IP: R2_MAC
+}
+
+port_table = {
+    # MAC : Socket
+    
+    # Router
+    "R1": 1520,
+    "R2": 1530,
+    # Node 2
+    "N1": 1500,
+    "N2": 1510,
+    "N3": 1511
 }
 
 shutdown_event = threading.Event()
 peers = [("127.0.0.1", 1500), ("127.0.0.1", 1510), ("127.0.0.1", 1511)]  # IP and port of node1, node2, and node3
-
-# ARP table mapping IP addresses to MAC addresses
-arp_table = {
-    R1_IP: R1_MAC,
-    R2_IP: R2_MAC
-}
 
 def handle_peer(sock, interface):
     while not shutdown_event.is_set():
@@ -45,13 +54,13 @@ def handle_frame(frame, interface):
     src_mac = frame[:2].decode()
     dst_mac = frame[2:4].decode()
     data_length = frame[4]
-    data = frame[5:5+data_length]
+    data = frame[5:]
 
     print(f"Received frame on {interface}: {frame.hex()}")
 
     if dst_mac == R1_MAC or dst_mac == R2_MAC:
         print(f"Received frame for me on {interface}: {frame.hex()}")
-        # handle_ip_packet(data, interface)
+        handle_ip_packet(data, interface)
     else:
         # do nothing
         print(f"Dropped frame on {interface}: {frame.hex()}")
@@ -59,11 +68,20 @@ def handle_frame(frame, interface):
         # broadcast_frame(frame, interface)
 
 def handle_ip_packet(packet, interface):
-    src_ip = packet[0]
-    dst_ip = packet[1]
+    src_ip = '0x' + hex(struct.unpack('B', packet[0:1])[0]).upper()[-2:]
+    dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
     protocol = packet[2]
     data_length = packet[3]
-    data = packet[4:4+data_length]
+    type = -1
+    if(protocol == 0):
+        print("Protocol is 0")
+        type = packet[4]
+        print("type is ", type)
+        data = packet[5:6+data_length]
+        data = data.decode('utf-8')
+    else:
+        data = packet[4:5+data_length]
+        data = data.decode('utf-8')
 
     print(f"Received IP packet on {interface}: {packet.hex()}")
 
@@ -72,22 +90,40 @@ def handle_ip_packet(packet, interface):
         if dst_mac == R1_MAC or dst_mac == R2_MAC:
             if protocol == 0:  # Ping protocol
                 reply_packet = bytes([dst_ip, src_ip, protocol, data_length]) + data
-                send_ip_packet(reply_packet, interface)
+                send_ip_packet(reply_packet, interface, True)
         else:
-            send_ip_packet(packet, interface)
+            send_ip_packet(packet, interface, True)
     else:
         print(f"Unknown destination IP: {dst_ip}")
 
-def send_ip_packet(packet, interface):
-    dst_ip = packet[1]
+def send_ip_packet(packet, interface, fromSendIP):
+    dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
+    print(dst_ip)
     dst_mac = arp_table[dst_ip]
+     # Check if we are sending from IP or Ethernet
+    if fromSendIP:
+        # Count the DataLength
+        dataLength = struct.unpack('!B', packet[4:5])[0]
+        print(f"Data Length: {dataLength}")
+        # Get the length of the entire message
+        dataLength = int(dataLength)
+        # Add in the Source, Dest MAC and Data Length
+        etherFrame = interface.encode() + dst_mac.encode() + bytes([dataLength]) + packet
+    else:
+        for macAddr in arp_table.values(): 
+            print(f"ARP Table MAC Address: {macAddr}")
+            if dst_mac == macAddr:
+                etherFrame = interface.encode() + macAddr.encode() + bytes([len(packet)]) + packet.encode()
+        
 
-    frame = dst_mac.encode() + interface.encode() + bytes([len(packet)]) + packet
-
-    print(f"Sending frame on {interface}: {frame.hex()}")
-
-    for peer in peers:
-        sock.sendto(frame, peer)
+    # for peer in peers:
+    #     sock.sendto(frame, peer)
+    if dst_mac in port_table:
+        port = port_table[dst_mac]
+        print(f"Port for {dst_mac}: {port}")
+        sock.sendto(etherFrame, ("127.0.0.1", port))
+    else:
+        print(f"Key {dst_mac} not found in port_table")
 
 def broadcast_frame(frame, interface):
     print(f"Broadcasting frame on {interface}: {frame.hex()}")

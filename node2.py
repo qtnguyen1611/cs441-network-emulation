@@ -109,28 +109,64 @@ def handle_ip_packet(packet):
     # Only can return Protocol 0 - Ping
     protocol = packet[2]
     data_length = packet[3]
-    data = packet[4:5+data_length]
-    data = data.decode('utf-8')
+    type = -1
+    if(protocol == 0):
+        print("Protocol is 0")
+        type = packet[4]
+        print("type is ", type)
+        data = packet[5:6+data_length]
+        data = data.decode('utf-8')
+    else:
+        data = packet[4:5+data_length]
+        data = data.decode('utf-8')
 
     print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data}")
-
-    formattedN2IP = '0x' + hex(N2_IP).upper()[-2:]
     
-    # Added max number of pings to 2
-    if dst_ip == formattedN2IP and src_ip not in pingReplyMap: # N2_IP:
-        # Add it to the map and set the value as 1
-        pingReplyMap[src_ip] = 1
-        send_ip_packet(src_ip, data)
-    # elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
-    #     # Increment the counter
-    #     pingReplyMap[src_ip] += 1
-    #     send_ip_packet(src_ip, data)
-    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] == 1:
-        # Remove the IP from the Ping Counter Map
-        print(f"Duplicate Ping Packet, dropping packet")
-        del pingReplyMap[src_ip]
+    if(type == 8):
+        # This is a ICMP Request, we will send a ICMP Reply
+        send_ICMP(src_ip, data, type)
+    elif(type == 0):
+        # This is a ICMP Reply, we will not send a ICMP Reply to it
+        print(f"Received ICMP Reply from {src_ip}, message: {data}")
+    else:
+        print(f"Received ICMP Reply from {src_ip}, message: {data}")
+        pass
+
+def send_ICMP(dst_ip, message, type):
+    """
+    Sends an ICMP packet with extra paramter "type"
+    type: 8 is ICMP Request
+    type: 0 is ICMP Reply
+    """
+    print("Sending ICMP Request")
+
+    # Check IP Addr against ARP Table
+    if dst_ip in arp_table.keys():
+        print(f"Destination IP found in ARP Table")
+        dst_mac = arp_table[dst_ip]
+        print(f"dst_mac: {dst_mac}")
+        if(type==8):
+            ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message), 0]) + message.encode()
+        else: 
+            ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message), 8]) + message.encode()
+        send_ethernet_frame(dst_mac, ipPacket, True)
+    else:
+        # this happen when they check the destination IP is not in the same subnet
+        # Set Destination MAC to Router
+        print(f"Destination IP not found in ARP Table, sending to Router")
+        dst_mac = "R2"
+        if(type==8):
+            ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message), 0]) + message.encode()
+        else: 
+            ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message), 8]) + message.encode()
+        send_ethernet_frame(dst_mac, ipPacket, True)
+    
+    # frame = N2_MAC.encode() + dst_mac.encode() + bytes([len(packet)]) + packet
+    # print(f"Sending frame: {frame.hex()}")
+    # for peer in peers:
+    #     sock.sendto(frame, peer)
         
-def send_ip_packet(dst_ip, message):
+def send_ip_packet(dst_ip, message, type):
     """
     Sends an IP packet to a destination IP address.
 
@@ -187,7 +223,7 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
      # Check if we are sending from IP or Ethernet
     if fromSendIP:
         # Count the DataLength
-        dataLength = struct.unpack('!B', broadcast_message[3:4])[0]
+        dataLength = struct.unpack('!B', broadcast_message[4:5])[0]
         print(f"Data Length: {dataLength}")
         # Get the length of the entire message
         dataLength = int(dataLength)
@@ -200,9 +236,19 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
                 etherFrame = N2_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
         
     # Broadcast to all nodes
-    for macAddr in port_table.keys():
-        print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame}")
-        sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
+    # for macAddr in port_table.keys():
+    #     print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame}")
+    #     sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
+    
+    # SHOULD BE SEND TO SINGLE AND NOT BROADCAST AND ITS A ICMP REPLY
+    # A ICMP TYPE IS ALL THAT IS NEEDED TO PREVENT ENDLESS RECURSION
+    if passedInMac in port_table:
+        port = port_table[passedInMac]
+        print(f"Port for {passedInMac}: {port}")
+        sock.sendto(etherFrame, ("127.0.0.1", port))
+    else:
+        print(f"Key {passedInMac} not found in port_table")
+
 
 def start_node():
     host = '127.0.0.1'
@@ -224,7 +270,8 @@ def start_node():
         if userinput.strip():
             if userinput.startswith("send"):
                 _, dst_ip_str, message = userinput.split(" ", 2)
-                send_ip_packet(dst_ip_str, message)
+                # send_ip_packet(dst_ip_str, message)
+                send_ICMP(dst_ip_str, message, -1)
                 # dst_ip = int(dst_ip_str, 16)
                 # packet = bytes([N2_IP, dst_ip, 0, len(message)]) + message.encode()
                 # print(packet)
