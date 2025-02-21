@@ -14,7 +14,7 @@ arp_table = {
     # IP: MAC
     
     # Node 1
-    "0x11": "N1",
+    "0x1A": "N1",
     
     # Node2
     "0x2A": "N2",

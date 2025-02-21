@@ -1,4 +1,5 @@
 import socket
+import struct
 import threading
 
 # Node3's MAC and IP addresses
@@ -46,34 +47,48 @@ def handle_frame(frame):
     :param frame: The received Ethernet frame as bytes.
 
     It extracts the source and destination MAC addresses, data length, and data from the frame.
-    It prints out the frame's hex representation, destination MAC address, and message.
-    If the destination MAC address matches N3's MAC address, it calls `handle_ip_packet` with the data.
+    Data here can consist of the entire IP Packet or just message sent using Ethernet.
+    If the Data is an IP Packet, it calls `handle_ip_packet` with the data.
+    If not, it checks if the destination MAC address matches N3's MAC address and it will process to print out the message.
     Otherwise, it prints out the dropped frame's hex representation.
     """
     src_mac = frame[:2].decode()
     dst_mac = frame[2:4].decode()
     data_length = frame[4]
-    data = frame[5:5+data_length]
-
+    # Ethernet Frame Data, the IP Packet is inside the Ethernet Frame
+    # Consist of the entire IP Packet
+    data = frame[5:]
+    
     print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}")
-    print(f"Message: {data.decode()}")
-
-    if dst_mac == N3_MAC:
-        print(f"Received frame for me: {frame.hex()}, from {src_mac}, data lenght: {data_length}, message: {data.decode()}")
-        # handle_ip_packet(data)
+    
+    # Check the first byte if it has '0x' in it
+    checkIfIPPacket = hex(struct.unpack('B', data[0:1])[0]).upper()
+    print(f"First Byte: {checkIfIPPacket}, Check if IP Packet: {checkIfIPPacket}")
+    if checkIfIPPacket[:2] == '0X':
+        # It is a IP Packet and let the IP Layer handle it
+        print(f"IP Packet Detected")
+        handle_ip_packet(data)
     else:
-        print(f"Dropped frame: {frame.hex()}")
+        # No IP Packet, continue with Ethernet Frame
+        if dst_mac == N3_MAC:
+            print(f"Received frame for me: {frame.hex()}, from {src_mac}, data lenght: {data_length}, message: {data[4:].decode()}")
+        else:
+            print(f"Dropped frame: {frame.hex()}")
 
-# To Fix
 def handle_ip_packet(packet):
-    src_ip = packet[0]
-    dst_ip = packet[1]
+    src_ip = hex(struct.unpack('B', packet[0:1])[0]).upper()
+    print(f"src_ip: {src_ip}")
+    dst_ip = hex(struct.unpack('B', packet[1:2])[0]).upper()
+    print(f"dst_ip: {dst_ip}")
+    # Only can return Protocol 0 - Ping
     protocol = packet[2]
     data_length = packet[3]
-    data = packet[4:4+data_length]
+    data = packet[4:5+data_length]
+    data = data.decode('utf-8')
 
-    print(f"Received IP packet: {packet.hex()}")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data}")
 
+    # Not working yet
     if dst_ip == N3_IP:
         if protocol == 0:  # Ping protocol
             reply_packet = bytes([dst_ip, src_ip, protocol, data_length]) + data
@@ -134,12 +149,13 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
     """
      # Check if we are sending from IP or Ethernet
     if fromSendIP:
-        # Decode and count the DataLength
-        data_length = broadcast_message.decode()
+        # Count the DataLength
+        dataLength = struct.unpack('!B', broadcast_message[3:4])[0]
+        print(f"Data Length: {dataLength}")
         # Get the length of the entire message
-        data_length = len(data_length)
+        dataLength = int(dataLength)
         # Add in the Source, Dest MAC and Data Length
-        etherFrame = N3_MAC.encode() + passedInMac.encode() + bytes([data_length]) + broadcast_message
+        etherFrame = N3_MAC.encode() + passedInMac.encode() + bytes([dataLength]) + broadcast_message
     else:
         for macAddr in arp_table.values(): 
             print(f"ARP Table MAC Address: {macAddr}")
