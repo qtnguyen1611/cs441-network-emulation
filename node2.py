@@ -27,6 +27,9 @@ port_table = {
     "N3": 1511
 }
 
+# Handles the number of ping reply to a specific IP
+pingReplyMap = {}
+
 shutdown_event = threading.Event()
 
 # Technically can be removed
@@ -71,10 +74,10 @@ def handle_frame(frame):
     
     print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}")
     
-    # Check the first byte if it has '0x' in it
-    checkIfIPPacket = hex(struct.unpack('B', data[0:1])[0]).upper()
-    print(f"First Byte: {checkIfIPPacket}, Check if IP Packet: {checkIfIPPacket}")
-    if checkIfIPPacket[:2] == '0X':
+    # Check the first byte & second byte has '0x' in it 
+    checkSrcIP = hex(struct.unpack('B', data[0:1])[0])
+    checkDestIP = hex(struct.unpack('B', data[1:2])[0])
+    if checkSrcIP[:2] == '0x' and checkDestIP[:2] == '0x':
         # It is a IP Packet and let the IP Layer handle it
         print(f"IP Packet Detected")
         handle_ip_packet(data)
@@ -86,10 +89,23 @@ def handle_frame(frame):
             print(f"Dropped frame: {frame.hex()}")
 
 def handle_ip_packet(packet):
-    src_ip = hex(struct.unpack('B', packet[0:1])[0]).upper()
-    print(f"src_ip: {src_ip}")
-    dst_ip = hex(struct.unpack('B', packet[1:2])[0]).upper()
-    print(f"dst_ip: {dst_ip}")
+    """
+    Processes an incoming IP packet and manages ping replies.
+
+    This function extracts the source and destination IP addresses, protocol,
+    and data from the incoming packet. It checks if the destination IP matches
+    the node's IP and manages the number of ping replies that can be sent to 
+    the source IP. If the source IP has not been recorded, it is added to the 
+    ping reply map and a reply is sent. If the source IP is already in the map 
+    and has not exceeded the maximum allowed pings, the counter is incremented 
+    and a reply is sent. If the source IP has reached the maximum allowed pings,
+    the packet is dropped.
+
+    Args:
+        packet (bytes): The incoming IP packet as a byte sequence.
+    """
+    src_ip = '0x' + hex(struct.unpack('B', packet[0:1])[0]).upper()[-2:]
+    dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
     # Only can return Protocol 0 - Ping
     protocol = packet[2]
     data_length = packet[3]
@@ -98,12 +114,22 @@ def handle_ip_packet(packet):
 
     print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data}")
 
-    # Not working yet
-    if dst_ip == N2_IP:
-        if protocol == 0:  # Ping protocol
-            reply_packet = bytes([dst_ip, src_ip, protocol, data_length]) + data
-            send_ip_packet(reply_packet)
-
+    formattedN2IP = '0x' + hex(N2_IP).upper()[-2:]
+    
+    # Added max number of pings to 2
+    if dst_ip == formattedN2IP and src_ip not in pingReplyMap: # N2_IP:
+        # Add it to the map and set the value as 1
+        pingReplyMap[src_ip] = 1
+        send_ip_packet(src_ip, data)
+    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
+        # Increment the counter
+        pingReplyMap[src_ip] += 1
+        send_ip_packet(src_ip, data)
+    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] == 2:
+        # Remove the IP from the Ping Counter Map
+        print(f"Duplicate Ping Packet, dropping packet")
+        del pingReplyMap[src_ip]
+        
 def send_ip_packet(dst_ip, message):
     """
     Sends an IP packet to a destination IP address.
@@ -120,6 +146,7 @@ def send_ip_packet(dst_ip, message):
         dst_ip (str): The destination IP address as a hexadecimal string.
         message (str): The message to be sent as a string.
     """
+    print("Ownself sending ping")
     # Check IP Addr against ARP Table
     if dst_ip in arp_table.keys():
         print(f"Destination IP found in ARP Table")
@@ -133,7 +160,7 @@ def send_ip_packet(dst_ip, message):
         dst_mac = "R2"
         ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message)]) + message.encode() 
         send_ethernet_frame(dst_mac, ipPacket, True)
-    
+        
     # frame = N2_MAC.encode() + dst_mac.encode() + bytes([len(packet)]) + packet
     # print(f"Sending frame: {frame.hex()}")
     # for peer in peers:
@@ -204,7 +231,7 @@ def start_node():
                 # send_ip_packet(packet)
             elif userinput.startswith("ethernet"):
                 _, macAddr, broadcast_message = userinput.split(" ", 2)
-                send_ethernet_frame(macAddr, broadcast_message, False)
+                send_ethernet_frame(macAddr, broadcast_message)
 
     sock.close()
 
