@@ -121,11 +121,11 @@ def handle_ip_packet(packet):
         # Add it to the map and set the value as 1
         pingReplyMap[src_ip] = 1
         send_ip_packet(src_ip, data)
-    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
-        # Increment the counter
-        pingReplyMap[src_ip] += 1
-        send_ip_packet(src_ip, data)
-    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] == 2:
+    # elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
+    #     # Increment the counter
+    #     pingReplyMap[src_ip] += 1
+    #     send_ip_packet(src_ip, data)
+    elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] == 1:
         # Remove the IP from the Ping Counter Map
         print(f"Duplicate Ping Packet, dropping packet")
         del pingReplyMap[src_ip]
