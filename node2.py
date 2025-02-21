@@ -10,9 +10,9 @@ arp_table = {
     # IP: MAC
     
     # Node3
-    0x2B: "N3",
+    "0x2B": "N3",
     # Router
-    0x21: "R2"
+    "0x21": "R2"
 }
 
 # Port Table / the Peers we are sending to
@@ -59,7 +59,7 @@ def handle_frame(frame):
     print(f"Message: {data.decode()}")
 
     if dst_mac == N2_MAC:
-        print(f"Received frame for me: {frame.hex()}, from {src_mac}, message: {data.decode()}")
+        print(f"Received frame for me: {frame.hex()}, from {src_mac}, data lenght: {data_length}, message: {data.decode()}")
         # handle_ip_packet(data)
     else:
         print(f"Dropped frame: {frame.hex()}")
@@ -78,38 +78,72 @@ def handle_ip_packet(packet):
             reply_packet = bytes([dst_ip, src_ip, protocol, data_length]) + data
             send_ip_packet(reply_packet)
 
-def send_ip_packet(packet):
-    # Check IP Addr against ARP Table
-    dst_ip = packet[1]
-    if dst_ip in arp_table:
-        dst_mac = arp_table[dst_ip]
-    else:
-        dst_mac = "R2"
-        return
-    
-    frame = N2_MAC.encode() + dst_mac.encode() + bytes([len(packet)]) + packet
-    print(f"Sending frame: {frame.hex()}")
-    for peer in peers:
-        sock.sendto(frame, peer)
+def send_ip_packet(dst_ip, message):
+    """
+    Sends an IP packet to a destination IP address.
 
-def send_ethernet_frame(userEnteredMacAddr, broadcast_message):
+    This function takes in a destination IP address and a message as arguments.
+    It checks if the destination IP address is in the ARP table. If it is, it
+    retrieves the destination MAC address from the ARP table and sends the IP
+    packet to ethernet frame for processing. 
+    If the destination IP address is not
+    in the ARP table, it sets the destination MAC address to the router and
+    sends the IP packet to ethernet frame for processing.
+
+    Args:
+        dst_ip (str): The destination IP address as a hexadecimal string.
+        message (str): The message to be sent as a string.
+    """
+    # Check IP Addr against ARP Table
+    if dst_ip in arp_table.keys():
+        print(f"Destination IP found in ARP Table")
+        dst_mac = arp_table[dst_ip]
+        print(f"dst_mac: {dst_mac}")
+        ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message)]) + message.encode() 
+        send_ethernet_frame(dst_mac, ipPacket, True)
+    else:
+        # Set Destination MAC to Router
+        print(f"Destination IP not found in ARP Table, sending to Router")
+        dst_mac = "R2"
+        ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message)]) + message.encode() 
+        send_ethernet_frame(dst_mac, ipPacket, True)
+    
+    # frame = N2_MAC.encode() + dst_mac.encode() + bytes([len(packet)]) + packet
+    # print(f"Sending frame: {frame.hex()}")
+    # for peer in peers:
+    #     sock.sendto(frame, peer)
+
+def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
     """
     Sends an Ethernet frame containing a broadcast message to a node with the
     specified MAC address.
 
-    This function takes in a MAC address and a broadcast message as arguments. It
-    checks if the MAC address is in the ARP table and encodes the message along
-    with the necessary headers and sends it to the destination MAC address that
-    is present in the port table.
+    This function takes in a MAC address, a broadcast message, and a boolean as
+    arguments. It checks if the boolean is True, if so it takes in the IP Packet, 
+    gets the length of the entire message, and adds in the
+    Source, Dest MAC and Data Length. If the boolean is False, it takes in the
+    broadcast message, gets the MAC address from the ARP table, and adds in the
+    Source, Dest MAC and Data Length.
 
     Args:
-        userEnteredMacAddr (str): The MAC address of the node to send the message to.
-        broadcast_message (str): The message to be broadcasted to the node.
+        passedInMac (str): The MAC address of the node to send the message to.
+        broadcast_message (bytes): The message to be broadcasted to the node.
+        fromSendIP (bool): A boolean indicating whether this function was called
+            from the IP layer (True) or the Ethernet layer (False).
     """
-    for macAddr in arp_table.values(): 
-        print(f"ARP Table MAC Address: {macAddr}")
-        if userEnteredMacAddr == macAddr:
-            etherFrame = N2_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
+     # Check if we are sending from IP or Ethernet
+    if fromSendIP:
+        # Decode and count the DataLength
+        data_length = broadcast_message.decode()
+        # Get the length of the entire message
+        data_length = len(data_length)
+        # Add in the Source, Dest MAC and Data Length
+        etherFrame = N2_MAC.encode() + passedInMac.encode() + bytes([data_length]) + broadcast_message
+    else:
+        for macAddr in arp_table.values(): 
+            print(f"ARP Table MAC Address: {macAddr}")
+            if passedInMac == macAddr:
+                etherFrame = N2_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
         
     # Broadcast to all nodes
     for macAddr in port_table.keys():
@@ -136,13 +170,14 @@ def start_node():
         if userinput.strip():
             if userinput.startswith("send"):
                 _, dst_ip_str, message = userinput.split(" ", 2)
-                dst_ip = int(dst_ip_str, 16)
-                packet = bytes([N2_IP, dst_ip, 0, len(message)]) + message.encode()
-                print(packet)
-                send_ip_packet(packet)
+                send_ip_packet(dst_ip_str, message)
+                # dst_ip = int(dst_ip_str, 16)
+                # packet = bytes([N2_IP, dst_ip, 0, len(message)]) + message.encode()
+                # print(packet)
+                # send_ip_packet(packet)
             elif userinput.startswith("ethernet"):
                 _, macAddr, broadcast_message = userinput.split(" ", 2)
-                send_ethernet_frame(macAddr, broadcast_message)
+                send_ethernet_frame(macAddr, broadcast_message, False)
 
     sock.close()
 
