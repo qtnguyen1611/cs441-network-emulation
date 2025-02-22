@@ -90,9 +90,14 @@ def handle_frame(frame, interface):
     checkDestIP = '0x' + hex(struct.unpack('B', data[1:2])[0]).upper()[-2:]
     print(f"checkDestIP: {checkDestIP}")
     
-    # Check if the packet is an IP Packet and the destination MAC is the Router's MAC
+    # IP Packet is meant for other Nodes
     if checkDestIP in arp_table.keys() and (dst_mac == R1_MAC or dst_mac == R2_MAC):
         print(f"IP Packet Detected \n")
+        handle_ip_packet(data, interface)
+    # IP Packet meant for Router
+    elif checkDestIP == '0x11' or checkDestIP == '0x21':
+        print(f"IP Packet meant for Router \n")
+        # Handle IP Packet for Router
         handle_ip_packet(data, interface)
     else:
         # No IP Packet, continue with Ethernet Frame
@@ -121,7 +126,10 @@ def handle_ip_packet(packet, interface):
     # Ping is meant for Router
     if dst_ip == formattedR1IP or dst_ip == formattedR2IP:
         # Perform Ping Reply
-        pass
+        # Return packet from the same interface
+        print(f"Ping is meant for Router, Sending Ping Reply to {src_ip}\n")
+        pingReplyMap[src_ip] = 1
+        send_ip_packet(src_ip, dst_ip, data, interface)
     # Ping is not meant for Router but the Dest IP is in the ARP Table
     elif dst_ip in arp_table:
         print(f"Destination IP in ARP Table {dst_ip}")
@@ -160,12 +168,26 @@ def handle_ip_packet(packet, interface):
 
 def send_ip_packet(src_ip, dst_ip, message, interface):
     print("In send_ip_packet")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, message: {message}, interface: {interface} \n")
+    # Nodes that are connected to the Router
+    # Send the packet to the correct Node
     if dst_ip in arp_table:
         print(f"Destination IP found in ARP Table {dst_ip} \n")
         # MAC address of the destination IP
         dst_mac = arp_table[dst_ip]
         
         ipPacket = bytes([int(src_ip, 16), int(dst_ip, 16), 0, len(message)]) + message.encode()
+        send_ethernet_frame(dst_mac, ipPacket, True, interface)
+    # IP Packet meant for Router
+    elif dst_ip == hex(R1_IP) or dst_ip == hex(R2_IP):
+        print(f"Packet meant for router \n")
+        ''' 
+        Because packet is meant for Router, we just switch the Src -> Dst
+        and Dst -> Src to act as a reply
+        We also exit out from the same interface
+        '''
+        ipPacket = bytes([int(dst_ip, 16), int(src_ip, 16), 0, len(message)]) + message.encode()
+        dst_mac = arp_table[src_ip]
         send_ethernet_frame(dst_mac, ipPacket, True, interface)
     else:
         print(f"Destination IP not found in ARP Table {dst_ip}, packet dropped \n")
