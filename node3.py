@@ -21,7 +21,7 @@ arp_table = {
 port_table = {
     # MAC : Socket
     
-    # Router
+    # Router 2
     "R2": 1530,
     # Node 2
     "N2": 1510
@@ -66,10 +66,10 @@ def handle_frame(frame):
     print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}")
     
     # Check the first byte & second byte has '0x' in it 
-    checkSrcIP = hex(struct.unpack('B', data[0:1])[0])
-    checkDestIP = hex(struct.unpack('B', data[1:2])[0])
+    checkDestIP = '0x' + hex(struct.unpack('B', data[1:2])[0]).upper()[-2:]
+    print(f"checkDestIP: {checkDestIP}")
     # Check if it is an IP Packet and the destination MAC is N3
-    if checkSrcIP[:2] == '0x' and checkDestIP[:2] == '0x' and dst_mac == N3_MAC:
+    if checkDestIP in arp_table.keys() and dst_mac == N3_MAC:
         # It is a IP Packet and let the IP Layer handle it
         print(f"IP Packet Detected")
         handle_ip_packet(data)
@@ -122,6 +122,9 @@ def handle_ip_packet(packet):
         # Remove the IP from the Ping Counter Map
         print(f"Duplicate Ping Packet, dropping packet")
         del pingReplyMap[src_ip]
+    # IP Packet is not meant for Node3
+    else:
+        print(f"Packet dropped")
 
 def send_ip_packet(dst_ip, message):
     """
@@ -191,10 +194,12 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
             print(f"ARP Table MAC Address: {macAddr}")
             if passedInMac == macAddr:
                 etherFrame = N3_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
+                break
         
     # Broadcast to all nodes
     for macAddr in port_table.keys():
         print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame}")
+        print(f"Ethernet Frame: {etherFrame.hex()}")
         sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
 
 def start_node():

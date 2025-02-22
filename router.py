@@ -83,10 +83,9 @@ def handle_frame(frame, interface):
     print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac} on {interface}")
     
     # Check the first byte & second byte has '0x' in it 
-    checkSrcIP = hex(struct.unpack('B', data[0:1])[0])
-    checkDestIP = hex(struct.unpack('B', data[1:2])[0])
+    checkDestIP = '0x' + hex(struct.unpack('B', data[1:2])[0]).upper()[-2:]
     # Check if the packet is an IP Packet and the destination MAC is the Router's MAC
-    if checkSrcIP[:2] == '0x' and checkDestIP[:2] == '0x' and (dst_mac == R1_MAC or dst_mac == R2_MAC):
+    if checkDestIP in arp_table.keys() and (dst_mac == R1_MAC or dst_mac == R2_MAC):
         print(f"IP Packet Detected \n")
         handle_ip_packet(data, interface)
     else:
