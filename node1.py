@@ -64,11 +64,16 @@ def handle_frame(frame):
     # Check the first byte & second byte has '0x' in it 
     checkDestIP = '0x' + hex(struct.unpack('B', data[1:2])[0]).upper()[-2:]
     print(f"checkDestIP: {checkDestIP}")
+    
+    formattedN1IP = '0x' + hex(N1_IP).upper()[-2:]
+    
     # Check if it is an IP Packet and the destination MAC is N2
-    if checkDestIP in arp_table.keys() and dst_mac == N1_MAC:
+    if checkDestIP == formattedN1IP and dst_mac == N1_MAC:
         # It is a IP Packet and let the IP Layer handle it
-        print(f"IP Packet Detected")
+        print(f"IP Packet Detected \n")
         handle_ip_packet(data)
+    elif checkDestIP in arp_table.keys() and dst_mac == N1_MAC:
+        print(f"IP Packet not meant for Node1, packet dropped \n")
     else:
         # No IP Packet, continue with Ethernet Frame
         if dst_mac == N1_MAC:
@@ -93,6 +98,8 @@ def handle_ip_packet(packet):
     Args:
         packet (bytes): The incoming IP packet as a byte sequence.
     """
+    print("In handle_ip_packet")
+    
     src_ip = '0x' + hex(struct.unpack('B', packet[0:1])[0]).upper()[-2:]
     dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
     # Only can return Protocol 0 - Ping
@@ -101,7 +108,7 @@ def handle_ip_packet(packet):
     data = packet[4:5+data_length]
     data = data.decode('utf-8')
 
-    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data}")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data} \n")
 
     formattedN1IP = '0x' + hex(N1_IP).upper()[-2:]
     
@@ -109,6 +116,7 @@ def handle_ip_packet(packet):
     if dst_ip == formattedN1IP and src_ip not in pingReplyMap: # N2_IP:
         # Add it to the map and set the value as 1
         pingReplyMap[src_ip] = 1
+        print(f"Sending Ping reply to {src_ip} \n")
         send_ip_packet(src_ip, data)
     # elif dst_ip == formattedN1IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
     #     # Increment the counter
@@ -138,18 +146,17 @@ def send_ip_packet(dst_ip, message):
         dst_ip (str): The destination IP address as a hexadecimal string.
         message (str): The message to be sent as a string.
     """
-    print("Ownself sending ping")
+    print("Sending Ping")
     # Check IP Addr against ARP Table
     if dst_ip in arp_table.keys():
-        print(f"Destination IP found in ARP Table")
         dst_mac = arp_table[dst_ip]
-        print(f"dst_mac: {dst_mac}")
+        print(f"Destination IP found in ARP Table, sending to {dst_mac} \n")
         ipPacket = bytes([N1_IP, int(dst_ip, 16), 0, len(message)]) + message.encode() 
         send_ethernet_frame(dst_mac, ipPacket, True)
     else:
         # Set Destination MAC to Router
-        print(f"Destination IP not found in ARP Table, sending to Router")
         dst_mac = "R1"
+        print(f"Destination IP not found in ARP Table, sending to Router on {dst_mac} \n")
         ipPacket = bytes([N1_IP, int(dst_ip, 16), 0, len(message)]) + message.encode() 
         send_ethernet_frame(dst_mac, ipPacket, True)
         
@@ -180,7 +187,6 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
     if fromSendIP:
         # Count the DataLength
         dataLength = struct.unpack('!B', broadcast_message[3:4])[0]
-        print(f"Data Length: {dataLength}")
         # Get the length of the entire message
         dataLength = int(dataLength)
         # Add in the Source, Dest MAC and Data Length
@@ -194,8 +200,7 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
         
     # Broadcast to all nodes
     for macAddr in port_table.keys():
-        print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame}")
-        print(f"Ethernet Frame: {etherFrame.hex()}")
+        print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame.hex()}")
         sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
 
 def start_node():

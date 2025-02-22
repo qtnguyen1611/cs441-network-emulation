@@ -71,17 +71,21 @@ def handle_frame(frame):
     # Ethernet Frame Data, the IP Packet is inside the Ethernet Frame
     # Consist of the entire IP Packet
     data = frame[5:]
-    
     print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}")
     
     # Check the first byte & second byte has '0x' in it 
     checkDestIP = '0x' + hex(struct.unpack('B', data[1:2])[0]).upper()[-2:]
     print(f"checkDestIP: {checkDestIP}")
+    
+    formattedN2IP = '0x' + hex(N2_IP).upper()[-2:]
+    
     # Check if it is an IP Packet and the destination MAC is N2
-    if checkDestIP in arp_table.keys() and dst_mac == N2_MAC:
+    if checkDestIP == formattedN2IP and dst_mac == N2_MAC:
         # It is a IP Packet and let the IP Layer handle it
-        print(f"IP Packet Detected")
+        print(f"IP Packet Detected \n")
         handle_ip_packet(data)
+    elif checkDestIP in arp_table.keys() and dst_mac == N2_MAC:
+        print(f"IP Packet not meant for Node2, Packet Dropped \n")
     else:
         # No IP Packet, continue with Ethernet Frame
         if dst_mac == N2_MAC:
@@ -105,6 +109,8 @@ def handle_ip_packet(packet):
     Args:
         packet (bytes): The incoming IP packet as a byte sequence.
     """
+    print("In handle_ip_packet")
+    
     src_ip = '0x' + hex(struct.unpack('B', packet[0:1])[0]).upper()[-2:]
     dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
     # Only can return Protocol 0 - Ping
@@ -113,7 +119,7 @@ def handle_ip_packet(packet):
     data = packet[4:5+data_length]
     data = data.decode('utf-8')
 
-    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data}")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data} \n")
 
     formattedN2IP = '0x' + hex(N2_IP).upper()[-2:]
     
@@ -121,6 +127,7 @@ def handle_ip_packet(packet):
     if dst_ip == formattedN2IP and src_ip not in pingReplyMap: # N2_IP:
         # Add it to the map and set the value as 1
         pingReplyMap[src_ip] = 1
+        print(f"Sending Ping Reply to {src_ip} \n")
         send_ip_packet(src_ip, data)
     # elif dst_ip == formattedN2IP and src_ip in pingReplyMap and pingReplyMap[src_ip] < 2:
     #     # Increment the counter
@@ -150,17 +157,16 @@ def send_ip_packet(dst_ip, message):
         dst_ip (str): The destination IP address as a hexadecimal string.
         message (str): The message to be sent as a string.
     """
-    print("Ownself sending ping")
+    print("Sending Ping")
     # Check IP Addr against ARP Table
     if dst_ip in arp_table.keys():
-        print(f"Destination IP found in ARP Table")
         dst_mac = arp_table[dst_ip]
-        print(f"dst_mac: {dst_mac}")
+        print(f"Destination IP found in ARP Table, dst_mac: {dst_mac} \n")
         ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message)]) + message.encode() 
         send_ethernet_frame(dst_mac, ipPacket, True)
     else:
         # Set Destination MAC to Router
-        print(f"Destination IP not found in ARP Table, sending to Router")
+        print(f"Destination IP not found in ARP Table, sending to Router \n")
         dst_mac = "R2"
         ipPacket = bytes([N2_IP, int(dst_ip, 16), 0, len(message)]) + message.encode() 
         send_ethernet_frame(dst_mac, ipPacket, True)
@@ -192,22 +198,20 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
     if fromSendIP:
         # Count the DataLength
         dataLength = struct.unpack('!B', broadcast_message[3:4])[0]
-        print(f"Data Length: {dataLength}")
         # Get the length of the entire message
         dataLength = int(dataLength)
         # Add in the Source, Dest MAC and Data Length
         etherFrame = N2_MAC.encode() + passedInMac.encode() + bytes([dataLength]) + broadcast_message
     else:
         for macAddr in arp_table.values(): 
-            print(f"ARP Table MAC Address: {macAddr}")
+            print(f"ARP Table MAC Address: {macAddr} \n")
             if passedInMac == macAddr:
                 etherFrame = N2_MAC.encode() + macAddr.encode() + bytes([len(broadcast_message)]) + broadcast_message.encode()
                 break
         
     # Broadcast to all nodes
     for macAddr in port_table.keys():
-        print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame}")
-        print(f"Ethernet Frame: {etherFrame.hex()}")
+        print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {etherFrame.hex()}")
         sock.sendto(etherFrame, ("127.0.0.1", port_table[macAddr]))
 
 def start_node():

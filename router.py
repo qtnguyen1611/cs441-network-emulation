@@ -82,8 +82,14 @@ def handle_frame(frame, interface):
     print("In handle_frame \n")
     print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac} on {interface}")
     
+    '''
+    Currently pinging router won't work will implement when have time
+    '''
+    
     # Check the first byte & second byte has '0x' in it 
     checkDestIP = '0x' + hex(struct.unpack('B', data[1:2])[0]).upper()[-2:]
+    print(f"checkDestIP: {checkDestIP}")
+    
     # Check if the packet is an IP Packet and the destination MAC is the Router's MAC
     if checkDestIP in arp_table.keys() and (dst_mac == R1_MAC or dst_mac == R2_MAC):
         print(f"IP Packet Detected \n")
@@ -107,16 +113,16 @@ def handle_ip_packet(packet, interface):
 
     print("In handle_ip_packet")
     print("Interface: ", interface)
-    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data}")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data} \n")
     
     formattedR1IP = hex(R1_IP)
     formattedR2IP = hex(R2_IP)
     
-    # Check if the destination IP is the Router's IP
+    # Ping is meant for Router
     if dst_ip == formattedR1IP or dst_ip == formattedR2IP:
         # Perform Ping Reply
         pass
-    # Check if the destination IP is in the ARP Table
+    # Ping is not meant for Router but the Dest IP is in the ARP Table
     elif dst_ip in arp_table:
         print(f"Destination IP in ARP Table {dst_ip}")
         # Check which exit to use
@@ -124,10 +130,11 @@ def handle_ip_packet(packet, interface):
             newInterface = "R2"
         else:
             newInterface = "R1"
-        print(f"Interface to use: {newInterface}")
+        # Exit interface to use
+        print(f"Interface to use: {newInterface} \n")
             
         # Forward the packet to the correct destination IP with the data
-        send_ip_packet(dst_ip, data, newInterface)
+        send_ip_packet(src_ip, dst_ip, data, newInterface)
     # No destination IP in ARP Table
     else:
         print(f"Packet dropped, destination IP not in ARP Table {dst_ip}")
@@ -151,21 +158,18 @@ def handle_ip_packet(packet, interface):
     # else:
     #     print(f"Unknown destination IP: {dst_ip}")
 
-def send_ip_packet(dst_ip, message, interface):
+def send_ip_packet(src_ip, dst_ip, message, interface):
     print("In send_ip_packet")
     if dst_ip in arp_table:
+        print(f"Destination IP found in ARP Table {dst_ip} \n")
         # MAC address of the destination IP
         dst_mac = arp_table[dst_ip]
-        
-        # IP of the Port it is exiting from
-        src_ip = interface_mapping[interface]
-        src_ip = hex(src_ip)
         
         ipPacket = bytes([int(src_ip, 16), int(dst_ip, 16), 0, len(message)]) + message.encode()
         send_ethernet_frame(dst_mac, ipPacket, True, interface)
     else:
-        print(f"Destination IP not found in ARP Table {dst_ip}, packet dropped")
-    
+        print(f"Destination IP not found in ARP Table {dst_ip}, packet dropped \n")
+     
     # dst_ip = packet[1]
     # dst_mac = arp_table[dst_ip]
 
@@ -195,8 +199,7 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP, interface):
         fromSendIP (bool): Indicates if the function was called from the IP layer.
         interface (str): The interface through which the frame is to be sent.
     """
-    
-    print(f"interface {interface}")
+    print(f"Exit interface to use: {interface} \n")
     # Check if sending from IP or Ethernet
     if fromSendIP:
         # Count the DataLength
