@@ -164,6 +164,41 @@ def send_ip_packet(dst_ip, message):
     # print(f"Sending frame: {frame.hex()}")
     # for peer in peers:
     #     sock.sendto(frame, peer)
+    
+def send_spoofed_ip_packet(src_ip, dst_ip, message):
+    """
+    Sends an IP packet to a destination IP address.
+
+    This function takes in a destination IP address and a message as arguments.
+    It checks if the destination IP address is in the ARP table. If it is, it
+    retrieves the destination MAC address from the ARP table and sends the IP
+    packet to ethernet frame for processing. 
+    If the destination IP address is not
+    in the ARP table, it sets the destination MAC address to the router and
+    sends the IP packet to ethernet frame for processing.
+
+    Args:
+        dst_ip (str): The destination IP address as a hexadecimal string.
+        message (str): The message to be sent as a string.
+    """
+    print(f"Sending Ping from Spoofed IP Address {src_ip}")
+    # Check IP Addr against ARP Table
+    if dst_ip in arp_table.keys():
+        dst_mac = arp_table[dst_ip]
+        print(f"Destination IP found in ARP Table, sending to {dst_mac} \n")
+        ipPacket = bytes([int(src_ip, 16), int(dst_ip, 16), 0, len(message)]) + message.encode() 
+        send_ethernet_frame(dst_mac, ipPacket, True)
+    else:
+        # Set Destination MAC to Router
+        dst_mac = "R1"
+        print(f"Destination IP not found in ARP Table, sending to Router on {dst_mac} \n")
+        ipPacket = bytes([int(src_ip, 16), int(dst_ip, 16), 0, len(message)]) + message.encode() 
+        send_ethernet_frame(dst_mac, ipPacket, True)
+        
+    # frame = N2_MAC.encode() + dst_mac.encode() + bytes([len(packet)]) + packet
+    # print(f"Sending frame: {frame.hex()}")
+    # for peer in peers:
+    #     sock.sendto(frame, peer)
 
 def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
     """
@@ -217,6 +252,7 @@ def start_node():
     print("Instructions:\n")
     print("  1. Type 'send <destination IP> <message>' to send a message to a specific node\n")
     print("  2. Type 'ethernet <destination MAC> <message>' to send a message to specified node\n")
+    print("  3. Type 'spoof <source IP> <destination IP> <message>' to send a message to specified node\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
@@ -233,6 +269,11 @@ def start_node():
             elif userinput.startswith("ethernet"):
                 _, macAddr, broadcast_message = userinput.split(" ", 2)
                 send_ethernet_frame(macAddr, broadcast_message, False)
+            elif userinput.startswith("spoof"):
+                _, src_ip_str, dst_ip_str, message = userinput.split(" ", 3)
+                send_spoofed_ip_packet(src_ip_str, dst_ip_str, message)
+            else:
+                print("Invalid command. Please try again.")
 
 
     sock.close()
