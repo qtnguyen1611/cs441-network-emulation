@@ -135,18 +135,15 @@ def handle_ip_packet(packet, interface):
         print(f"Destination IP in ARP Table {dst_ip}")
         # Check which exit to use based on node to router mapping
         # Compare against arp_table and get the value
-        ''' 
-        Uncomment and use this to test when you trying out IP Spoofing @Jian Kiat
-        '''
-        # dstMac = arp_table[dst_ip]
+        dstMac = arp_table[dst_ip]
         # # Use this value to compare against key for nodes_to_router_mapping and get the value
         # # This value is the exit interface to use
-        # newInterface = nodes_to_router_mapping[dstMac]
+        newInterface = nodes_to_router_mapping[dstMac]
         
-        if interface == "R1":
-            newInterface = "R2"
-        else:
-            newInterface = "R1"
+        # if interface == "R1":
+        #     newInterface = "R2"
+        # else:
+        #     newInterface = "R1"
         # Exit interface to use
         print(f"Interface to use: {newInterface} \n")
             
@@ -234,9 +231,10 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP, interface):
     # Check if sending from IP or Ethernet
     if fromSendIP:
         # Count the DataLength
-        dataLength = struct.unpack('!B', broadcast_message[3:4])[0]
+        dataLength = len(broadcast_message)
         # Get the length of the entire message
         dataLength = int(dataLength)
+        
         # Add in the Source, Dest MAC and Data Length
         if isinstance(broadcast_message, bytes):
             etherFrame = interface.encode() + passedInMac.encode() + bytes([len(broadcast_message)]) + broadcast_message

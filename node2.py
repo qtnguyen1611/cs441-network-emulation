@@ -197,7 +197,7 @@ def send_ethernet_frame(passedInMac, broadcast_message, fromSendIP):
      # Check if we are sending from IP or Ethernet
     if fromSendIP:
         # Count the DataLength
-        dataLength = struct.unpack('!B', broadcast_message[3:4])[0]
+        dataLength = len(broadcast_message)
         # Get the length of the entire message
         dataLength = int(dataLength)
         # Add in the Source, Dest MAC and Data Length
