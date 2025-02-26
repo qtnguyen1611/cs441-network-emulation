@@ -133,7 +133,16 @@ def handle_ip_packet(packet, interface):
     # Ping is not meant for Router but the Dest IP is in the ARP Table
     elif dst_ip in arp_table:
         print(f"Destination IP in ARP Table {dst_ip}")
-        # Check which exit to use
+        # Check which exit to use based on node to router mapping
+        # Compare against arp_table and get the value
+        ''' 
+        Uncomment and use this to test when you trying out IP Spoofing @Jian Kiat
+        '''
+        # dstMac = arp_table[dst_ip]
+        # # Use this value to compare against key for nodes_to_router_mapping and get the value
+        # # This value is the exit interface to use
+        # newInterface = nodes_to_router_mapping[dstMac]
+        
         if interface == "R1":
             newInterface = "R2"
         else:
