@@ -7,8 +7,8 @@ R1_MAC = "R1"
 R2_MAC = "R2"
 
 # Router's IP addresses
-R1_IP = 0x11
-R2_IP = 0x21
+R1_IP = "0x11"
+R2_IP = "0x21"
 
 # ARP Table
 arp_table = {

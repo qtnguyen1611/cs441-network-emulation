@@ -4,7 +4,7 @@ import threading
 
 # Node1's MAC and IP addresses
 N1_MAC = "N1"
-N1_IP = 0x1A
+N1_IP = "0x1A"
 
 # ARP Table
 arp_table = {
