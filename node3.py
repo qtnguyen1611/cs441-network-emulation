@@ -2,6 +2,9 @@ import socket
 import threading
 from datalink import handle_ethernet_frame, form_ethernet_frame
 from network import handle_ip_packet, form_ip_packet
+from firewall_node3 import check_firewall_rules
+
+firewall_status = False
 
 # Node3's MAC and IP addresses
 N3_MAC = "N3"
@@ -52,13 +55,26 @@ def handle_peer(sock):
                     data = handle_ip_packet(ip_packet, N3_IP)
                     if data:
                         src_ip, protocol, message = data
-                        if protocol == 0:
-                            if src_ip not in pingReplyMap:
-                                pingReplyMap[src_ip] = 1
-                                send_message(src_ip, message)
+                        if firewall_status:
+                            action = check_firewall_rules(src_ip, N3_IP, protocol)
+                            if action == "allow":
+                                if protocol == 0:
+                                    if src_ip not in pingReplyMap:
+                                        pingReplyMap[src_ip] = 1
+                                        send_message(src_ip, message)
+                                    else:
+                                        del pingReplyMap[src_ip]
+                                        print("Dropped packet: Maximum number of pings reached.")
                             else:
-                                del pingReplyMap[src_ip]
-                                print("Dropped packet: Maximum number of pings reached.")
+                                print(f"Dropped packet from {src_ip} : Firewall rule denied.")
+                        else:
+                            if protocol == 0:
+                                if src_ip not in pingReplyMap:
+                                    pingReplyMap[src_ip] = 1
+                                    send_message(src_ip, message)
+                                else:
+                                    del pingReplyMap[src_ip]
+                                    print("Dropped packet: Maximum number of pings reached.")
 
         except Exception as e:
             print(f"Error: {e}")
@@ -105,6 +121,8 @@ def start_node():
     port = 1511
 
     global sock
+    global firewall_status
+    
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((host, port))
 
@@ -114,6 +132,8 @@ def start_node():
     print("Instructions:\n")
     print("  1. Type 'send <destination IP> <message>' to send a message to a specific node\n")
     print("  2. Type 'ethernet <destination MAC> <message>' to send a message to specified node\n")
+    print("  3. Type 'on firewall' to turn on firewall\n")
+    print("  4. Type 'off firewall' to turn off firewall\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
@@ -128,6 +148,12 @@ def start_node():
             # elif userinput.startswith("ethernet"):
             #     _, macAddr, broadcast_message = userinput.split(" ", 2)
             #     send_ethernet_frame(macAddr, broadcast_message, False)
+            elif userinput.startswith("on firewall"):
+                firewall_status = True
+                print("Firewall is now on.")
+            elif userinput.startswith("off firewall"):
+                firewall_status = False
+                print("Firewall is now off.")
 
     sock.close()
 
