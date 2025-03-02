@@ -2,19 +2,17 @@ import struct
 
 def handle_ip_packet(packet, curr_IP):
     """
-    Processes an incoming IP packet and manages ping replies.
+    Processes an incoming IP packet.
 
     This function extracts the source and destination IP addresses, protocol,
     and data from the incoming packet. It checks if the destination IP matches
-    the node's IP and manages the number of ping replies that can be sent to 
-    the source IP. If the source IP has not been recorded, it is added to the 
-    ping reply map and a reply is sent. If the source IP is already in the map 
-    and has not exceeded the maximum allowed pings, the counter is incremented 
-    and a reply is sent. If the source IP has reached the maximum allowed pings,
-    the packet is dropped.
+    the current IP. It drops the packet if the destination IP does not match
+    the current IP. It returns the source IP, protocol, and data if the destination
+    IP matches the current IP. 
 
     Args:
         packet (bytes): The incoming IP packet as a byte sequence.
+        curr_IP: The current IP address.
     """
     print("--Network layer--")    
     src_ip = '0x' + hex(struct.unpack('B', packet[0:1])[0]).upper()[-2:]
@@ -25,9 +23,8 @@ def handle_ip_packet(packet, curr_IP):
     data = packet[4:5+data_length]
     data = data.decode('utf-8')
 
-    print(f"src_ip: {src_ip}, curr_ip: {curr_IP}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data} \n")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data} \n")
     
-    # Added max number of pings to 2
     if dst_ip == curr_IP:
         print(f"IP Address matches, processing IP Packet")
         return [src_ip, protocol, data]
@@ -40,13 +37,9 @@ def handle_sniffed_ip_packet(packet):
     Processes an incoming IP packet and manages ping replies.
 
     This function extracts the source and destination IP addresses, protocol,
-    and data from the incoming packet. It checks if the destination IP matches
-    the node's IP and manages the number of ping replies that can be sent to 
-    the source IP. If the source IP has not been recorded, it is added to the 
-    ping reply map and a reply is sent. If the source IP is already in the map 
-    and has not exceeded the maximum allowed pings, the counter is incremented 
-    and a reply is sent. If the source IP has reached the maximum allowed pings,
-    the packet is dropped.
+    and data from the incoming packet. 
+
+    Returns the source IP, destination IP, protocol, and data.
 
     Args:
         packet (bytes): The incoming IP packet as a byte sequence.
@@ -64,16 +57,10 @@ def handle_sniffed_ip_packet(packet):
 
 def router_handle_ip_packet(packet):
     """
-    Processes an incoming IP packet and manages ping replies.
+    Processes an incoming IP packet for router.
 
-    This function extracts the source and destination IP addresses, protocol,
-    and data from the incoming packet. It checks if the destination IP matches
-    the node's IP and manages the number of ping replies that can be sent to 
-    the source IP. If the source IP has not been recorded, it is added to the 
-    ping reply map and a reply is sent. If the source IP is already in the map 
-    and has not exceeded the maximum allowed pings, the counter is incremented 
-    and a reply is sent. If the source IP has reached the maximum allowed pings,
-    the packet is dropped.
+    This function extracts and returns the source and destination IP 
+    addresses, protocol, and data from the incoming packet.
 
     Args:
         packet (bytes): The incoming IP packet as a byte sequence.
@@ -103,8 +90,8 @@ def form_ip_packet(src_ip, dst_ip, protocol, message):
     returned as a byte sequence.
 
     Args:
-        src_ip (str): The source IP address as a hexadecimal string.
-        dst_ip (str): The destination IP address as a hexadecimal string.
+        src_ip (str): The source IP address as a string.
+        dst_ip (str): The destination IP address as a string.
         protocol (int): The protocol number as an integer.
         message (str): The message to be sent as a string.
 

@@ -3,12 +3,12 @@ def handle_ethernet_frame(frame, curr_MAC):
     Handles a received Ethernet frame.
 
     :param frame: The received Ethernet frame as bytes.
+    :param curr_MAC: The current MAC address.
 
     It extracts the source and destination MAC addresses, data length, and data from the frame.
-    Data here can consist of the entire IP Packet or just message sent using Ethernet.
-    If the Data is an IP Packet, it calls `handle_ip_packet` with the data.
-    If not, it checks if the destination MAC address matches N2's MAC address and it will process to print out the message.
-    Otherwise, it prints out the dropped frame's hex representation.
+    Data here can consist of Ethernet frame and IP packet inside.
+    Returns IP packet if the destination MAC address matches the current MAC address.
+    Otherwise, it drops the frame.
     """
     src_mac = frame[:2].decode()
     dst_mac = frame[2:4].decode()
@@ -29,15 +29,13 @@ def handle_ethernet_frame(frame, curr_MAC):
     
 def handle_sniffed_ethernet_frame(frame):
     """
-    Handles a received Ethernet frame.
+    Handles a received sniffed Ethernet frame.
 
     :param frame: The received Ethernet frame as bytes.
 
     It extracts the source and destination MAC addresses, data length, and data from the frame.
-    Data here can consist of the entire IP Packet or just message sent using Ethernet.
-    If the Data is an IP Packet, it calls `handle_ip_packet` with the data.
-    If not, it checks if the destination MAC address matches N2's MAC address and it will process to print out the message.
-    Otherwise, it prints out the dropped frame's hex representation.
+    Data here can consist of Ethernet frame and IP packet inside.
+    Returns IP packet.
     """
     src_mac = frame[:2].decode()
     dst_mac = frame[2:4].decode()
@@ -58,5 +56,5 @@ def form_ethernet_frame(src_mac, dst_mac, data):
         data: The data to be sent as bytes.
     """
     print("--DataLink layer--")
-    print(f"src_mac: {src_mac}, dst_mac: {dst_mac}, data: {data}")
+    print(f"Ethernet frame: src_mac: {src_mac}, dst_mac: {dst_mac}, data length: {len(data)}, data: {data}")
     return src_mac.encode() + dst_mac.encode() + bytes([len(data)]) + data

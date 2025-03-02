@@ -1,4 +1,4 @@
-# Define the firewall rule table as a hashmap
+# Define the firewall rule table as a stack
 # Last rule is always allow all or deny all
 firewall_rules = [
     # {
@@ -32,7 +32,6 @@ def check_firewall_rules(src_ip, dst_ip, protocol):
            (rule["dst_ip"] == dst_ip or rule["dst_ip"] == "*") and \
            rule["protocol"] == protocol:
             return rule["action"]
-    # return firewall_rules[len(firewall_rules)-1]["action"]
 
 def push_firewall_rule(rule):
     """
