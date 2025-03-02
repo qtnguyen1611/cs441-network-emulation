@@ -1,7 +1,7 @@
 import socket
 import threading
 from datalink import handle_ethernet_frame, form_ethernet_frame
-from network import handle_ip_packet, router_handle_ip_packet, form_ip_packet
+from network import router_handle_ip_packet, form_ip_packet
 
 # Router's MAC addresses
 R1_MAC = "R1"
@@ -86,11 +86,6 @@ def handle_peer(sock, interface):
                             # # This value is the exit interface to use
                             newInterface = nodes_to_router_mapping[dstMac]
                             
-                            # if interface == "R1":
-                            #     newInterface = "R2"
-                            # else:
-                            #     newInterface = "R1"
-                            # Exit interface to use
                             print(f"Interface to use: {newInterface} \n")
                                 
                             # Forward the packet to the correct destination IP with the data
@@ -108,18 +103,17 @@ def handle_peer(sock, interface):
 
 def send_message(src_ip, dst_ip, message, newInterface):
     """
-    Sends an IP packet to a destination IP address.
+    Forwards a message to a destination IP address.
 
-    This function takes in a destination IP address and a message as arguments.
-    It checks if the destination IP address is in the ARP table. If it is, it
-    retrieves the destination MAC address from the ARP table and sends the IP
-    packet to ethernet frame for processing. 
-    If the destination IP address is not
-    in the ARP table, it sets the destination MAC address to the router and
-    sends the IP packet to ethernet frame for processing.
+    This function takes in source and destination IP address, message and router's 
+    interface as arguments. It checks if the destination IP address is in the ARP 
+    table. If it is, it retrieves the destination MAC address from the ARP table and 
+    forms the ethernet frame with the IP packet. If the destination IP address is not
+    in the ARP table, it will drop the packet.
 
+    It then passes the ethernet frame to send_packet to send the message.
     Args:
-        dst_ip (str): The destination IP address as a hexadecimal string.
+        dst_ip (str): The destination IP address as a string.
         message (str): The message to be sent as a string.
     """
     # Check IP Addr against ARP Table
@@ -128,12 +122,7 @@ def send_message(src_ip, dst_ip, message, newInterface):
         dst_mac = arp_table[dst_ip]
         print(f"Destination IP found in ARP Table, dst_mac: {dst_mac} \n")
         ethernet_frame = form_ethernet_frame(newInterface, dst_mac, ip_packet)
-    else:
-        # Set Destination MAC to Router
-        print(f"Destination IP not found in ARP Table, sending to Router \n")
-        dst_mac = "R2"
-        ethernet_frame = form_ethernet_frame(newInterface, dst_mac, ip_packet)
-    send_packet(ethernet_frame, newInterface)
+        send_packet(ethernet_frame, newInterface)
         
 
 def send_packet(ethernet_frame, interface):
