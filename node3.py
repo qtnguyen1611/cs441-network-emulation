@@ -2,7 +2,7 @@ import socket
 import threading
 from datalink import handle_ethernet_frame, form_ethernet_frame
 from network import handle_ip_packet, form_ip_packet
-from firewall_node3 import check_firewall_rules
+from firewall_node3 import check_firewall_rules, push_firewall_rule
 
 firewall_status = False
 
@@ -134,6 +134,7 @@ def start_node():
     print("  2. Type 'ethernet <destination MAC> <message>' to send a message to specified node\n")
     print("  3. Type 'on firewall' to turn on firewall\n")
     print("  4. Type 'off firewall' to turn off firewall\n")
+    print("  5. Type 'add firewall rule <source IP> <destination IP> <protocol> <action>' to add firewall rule (first rule is always default)\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
@@ -154,6 +155,16 @@ def start_node():
             elif userinput.startswith("off firewall"):
                 firewall_status = False
                 print("Firewall is now off.")
+            elif userinput.startswith("add firewall rule"):
+                _, _, _, src_ip, dst_ip, protocol, action = userinput.split(" ", 6)
+                new_rule = {
+                    "src_ip": src_ip,
+                    "dst_ip": dst_ip,
+                    "protocol": int(protocol),
+                    "action": action
+                }
+                push_firewall_rule(new_rule)
+                print(f"Firewall rule added: {new_rule}")
 
     sock.close()
 
