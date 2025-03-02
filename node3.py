@@ -1,10 +1,11 @@
 import socket
 import threading
-from datalink import handle_ethernet_frame, form_ethernet_frame
-from network import handle_ip_packet, form_ip_packet
+from datalink import handle_ethernet_frame, handle_sniffed_ethernet_frame, form_ethernet_frame
+from network import handle_ip_packet, handle_sniffed_ip_packet, form_ip_packet
 from firewall_node3 import check_firewall_rules, push_firewall_rule
 
 firewall_status = False
+sniffing_status = False
 
 # Node3's MAC and IP addresses
 N3_MAC = "N3"
@@ -50,14 +51,30 @@ def handle_peer(sock):
         try:
             frame, addr = sock.recvfrom(260)
             if frame:
-                ip_packet = handle_ethernet_frame(frame, N3_MAC)
-                if ip_packet:
-                    data = handle_ip_packet(ip_packet, N3_IP)
-                    if data:
-                        src_ip, protocol, message = data
-                        if firewall_status:
-                            action = check_firewall_rules(src_ip, N3_IP, protocol)
-                            if action == "allow":
+                if sniffing_status:
+                    ip_packet = handle_sniffed_ethernet_frame(frame)
+                    data = handle_sniffed_ip_packet(ip_packet)
+                    src_ip, dst_ip, protocol, message = data
+                    print(f"Packet Sniffed from: {src_ip} -> {dst_ip}, protocol: {protocol}, message: {message}")
+                else:
+                    ip_packet = handle_ethernet_frame(frame, N3_MAC)
+                    if ip_packet:
+                        data = handle_ip_packet(ip_packet, N3_IP)
+                        if data:
+                            src_ip, protocol, message = data
+                            if firewall_status:
+                                action = check_firewall_rules(src_ip, N3_IP, protocol)
+                                if action == "allow":
+                                    if protocol == 0:
+                                        if src_ip not in pingReplyMap:
+                                            pingReplyMap[src_ip] = 1
+                                            send_message(src_ip, message)
+                                        else:
+                                            del pingReplyMap[src_ip]
+                                            print("Dropped packet: Maximum number of pings reached.")
+                                else:
+                                    print(f"Dropped packet from {src_ip} : Firewall rule denied.")
+                            else:
                                 if protocol == 0:
                                     if src_ip not in pingReplyMap:
                                         pingReplyMap[src_ip] = 1
@@ -65,16 +82,6 @@ def handle_peer(sock):
                                     else:
                                         del pingReplyMap[src_ip]
                                         print("Dropped packet: Maximum number of pings reached.")
-                            else:
-                                print(f"Dropped packet from {src_ip} : Firewall rule denied.")
-                        else:
-                            if protocol == 0:
-                                if src_ip not in pingReplyMap:
-                                    pingReplyMap[src_ip] = 1
-                                    send_message(src_ip, message)
-                                else:
-                                    del pingReplyMap[src_ip]
-                                    print("Dropped packet: Maximum number of pings reached.")
 
         except Exception as e:
             print(f"Error: {e}")
@@ -122,6 +129,7 @@ def start_node():
 
     global sock
     global firewall_status
+    global sniffing_status
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((host, port))
@@ -135,6 +143,8 @@ def start_node():
     print("  3. Type 'on firewall' to turn on firewall\n")
     print("  4. Type 'off firewall' to turn off firewall\n")
     print("  5. Type 'add firewall rule <source IP> <destination IP> <protocol> <action>' to add firewall rule (first rule is always default)\n")
+    print("  6. Type 'start sniffing' to turn on sniffing\n")
+    print("  7. Type 'stop sniffing' to turn off sniffing\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
@@ -165,6 +175,13 @@ def start_node():
                 }
                 push_firewall_rule(new_rule)
                 print(f"Firewall rule added: {new_rule}")
+            elif userinput.startswith("start sniffing"):
+                sniffing_status = True
+                print("Sniffing started...")
+            elif userinput.startswith("stop sniffing"):
+                sniffing_status = False
+                print("Sniffing stopped...")
+                
 
     sock.close()
 
