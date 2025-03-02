@@ -40,7 +40,7 @@ def handle_peer(sock):
     """
     Handles a peer connection. This function is run in a separate thread and
     responsible for receiving Ethernet frames from the socket and passing them to
-    handle_frame.
+    functions to handle it.
 
     Args:
         sock (socket.socket): The socket object to receive frames from
@@ -68,18 +68,18 @@ def handle_peer(sock):
         
 def send_message(dst_ip, message):
     """
-    Sends an IP packet to a destination IP address.
+    Sends an message to a destination IP address.
 
     This function takes in a destination IP address and a message as arguments.
     It checks if the destination IP address is in the ARP table. If it is, it
-    retrieves the destination MAC address from the ARP table and sends the IP
-    packet to ethernet frame for processing. 
-    If the destination IP address is not
-    in the ARP table, it sets the destination MAC address to the router and
-    sends the IP packet to ethernet frame for processing.
+    retrieves the destination MAC address from the ARP table and forms the ethernet
+    frame with the IP packet.
+    If the destination IP address is not in the ARP table, it sets the destination 
+    MAC address to the router and forms the ethernet frame with the IP packet.
 
+    It then passes the ethernet frame to send_packet to send the message.
     Args:
-        dst_ip (str): The destination IP address as a hexadecimal string.
+        dst_ip (str): The destination IP address as a string.
         message (str): The message to be sent as a string.
     """
     # Check IP Addr against ARP Table
@@ -112,10 +112,9 @@ def start_node():
 
     threading.Thread(target=handle_peer, args=(sock,)).start()
 
-    print("Hello! Welcome to the chatroom.\n")
+    print("Hello! Welcome to Node 2.\n")
     print("Instructions:\n")
     print("  1. Type 'send <destination IP> <message>' to send a message to a specific node\n")
-    print("  2. Type 'ethernet <destination MAC> <message>' to send a message to specified node\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
@@ -123,13 +122,8 @@ def start_node():
             if userinput.startswith("send"):
                 _, dst_ip_str, message = userinput.split(" ", 2)
                 send_message(dst_ip_str, message)
-                # dst_ip = int(dst_ip_str, 16)
-                # packet = bytes([N2_IP, dst_ip, 0, len(message)]) + message.encode()
-                # print(packet)
-                # send_message(packet)
-            # elif userinput.startswith("ethernet"):
-            #     _, macAddr, broadcast_message = userinput.split(" ", 2)
-            #     send_ethernet_frame(macAddr, broadcast_message, False)
+            else:
+                print("Invalid command. Please try again.")
 
     sock.close()
 
