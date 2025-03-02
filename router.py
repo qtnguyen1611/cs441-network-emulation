@@ -71,35 +71,30 @@ def handle_peer(sock, interface):
         try:
             frame, addr = sock.recvfrom(260)
             if frame:
-                ip_packet = handle_ethernet_frame(frame, interface)
-                if ip_packet:
-                    data = router_handle_ip_packet(ip_packet)
-                    if data:
-                        src_ip, dst_ip, protocol, message = data
-
-                        if dst_ip in arp_table:
-                            print(f"Destination IP in ARP Table {dst_ip}")
-                            # Check which exit to use based on node to router mapping
-                            # Compare against arp_table and get the value
-                            dstMac = arp_table[dst_ip]
-                            # # Use this value to compare against key for nodes_to_router_mapping and get the value
-                            # # This value is the exit interface to use
-                            newInterface = nodes_to_router_mapping[dstMac]
-                            
-                            print(f"Interface to use: {newInterface} \n")
-                                
-                            # Forward the packet to the correct destination IP with the data
-                            if protocol == 0:
-                                send_message(src_ip, dst_ip, message, newInterface)
-                        # No destination IP in ARP Table
-                        else:
-                            print(f"Packet dropped, destination IP not in ARP Table {dst_ip}")
-
-
-
+                process_frame(frame, interface)
         except Exception as e:
-            print(f"Error: {e}")
+            if not shutdown_event.is_set():
+                print(f"Error: {e}")
             break
+
+def process_frame(frame, interface):
+    ip_packet = handle_ethernet_frame(frame, interface)
+    if ip_packet:
+        data = router_handle_ip_packet(ip_packet)
+        if data:
+            src_ip, dst_ip, protocol, message = data
+            if dst_ip in arp_table:
+                handle_known_destination(src_ip, dst_ip, protocol, message)
+            else:
+                print(f"Packet dropped, destination IP not in ARP Table {dst_ip}")
+
+def handle_known_destination(src_ip, dst_ip, protocol, message):
+    print(f"Destination IP in ARP Table {dst_ip}")
+    dst_mac = arp_table[dst_ip]
+    new_interface = nodes_to_router_mapping[dst_mac]
+    print(f"Interface to use: {new_interface} \n")
+    if protocol == 0:
+        send_message(src_ip, dst_ip, message, new_interface)
 
 def send_message(src_ip, dst_ip, message, newInterface):
     """

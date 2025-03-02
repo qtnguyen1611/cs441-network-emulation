@@ -49,22 +49,27 @@ def handle_peer(sock):
         try:
             frame, addr = sock.recvfrom(260)
             if frame:
-                ip_packet = handle_ethernet_frame(frame, N2_MAC)
-                if ip_packet:
-                    data = handle_ip_packet(ip_packet, N2_IP)
-                    if data:
-                        src_ip, protocol, message = data
-                        if protocol == 0:
-                            if src_ip not in pingReplyMap:
-                                pingReplyMap[src_ip] = 1
-                                send_message(src_ip, message)
-                            else:
-                                del pingReplyMap[src_ip]
-                                print("Dropped packet: Maximum number of pings reached.")
-
+                process_frame(frame)
         except Exception as e:
             print(f"Error: {e}")
             break
+
+def process_frame(frame):
+    ip_packet = handle_ethernet_frame(frame, N2_MAC)
+    if ip_packet:
+        data = handle_ip_packet(ip_packet, N2_IP)
+        if data:
+            src_ip, protocol, message = data
+            process_protocol(src_ip, protocol, message)
+
+def process_protocol(src_ip, protocol, message):
+    if protocol == 0:
+        if src_ip not in pingReplyMap:
+            pingReplyMap[src_ip] = 1
+            send_message(src_ip, message)
+        else:
+            del pingReplyMap[src_ip]
+            print("Dropped packet: Maximum number of pings reached.")
         
 def send_message(dst_ip, message):
     """
