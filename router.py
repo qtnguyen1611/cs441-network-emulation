@@ -85,14 +85,24 @@ def process_frame(frame, interface):
             src_ip, dst_ip, protocol, message = data
             if dst_ip in arp_table:
                 handle_known_destination(src_ip, dst_ip, protocol, message)
+            
+            # No destination IP in ARP Table
             else:
                 print(f"Packet dropped, destination IP not in ARP Table {dst_ip}")
 
 def handle_known_destination(src_ip, dst_ip, protocol, message):
     print(f"Destination IP in ARP Table {dst_ip}")
+    
+    # Check which exit to use based on node to router mapping
+    # Compare against arp_table and get the value
     dst_mac = arp_table[dst_ip]
+
+    # Use this value to compare against key for nodes_to_router_mapping and get the value
+    # This value is the exit interface to use
     new_interface = nodes_to_router_mapping[dst_mac]
     print(f"Interface to use: {new_interface} \n")
+
+    # Forward the packet to the correct destination IP with the data
     if protocol == 0:
         send_message(src_ip, dst_ip, message, new_interface)
 
