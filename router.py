@@ -48,9 +48,6 @@ nodes_to_router_mapping = {
     "N3": "R2"
 }
 
-# Handles the number of ping reply to a specific IP
-pingReplyMap = {}
-
 shutdown_event = threading.Event()
 peers = [("127.0.0.1", 1500), ("127.0.0.1", 1510), ("127.0.0.1", 1511)]  # IP and port of node1, node2, and node3
 
@@ -98,13 +95,7 @@ def handle_peer(sock, interface):
                                 
                             # Forward the packet to the correct destination IP with the data
                             if protocol == 0:
-                                if src_ip not in pingReplyMap:
-                                    pingReplyMap[src_ip] = 1
-                                    send_message(src_ip, dst_ip, message, newInterface)
-                                    # send_message(src_ip, message)
-                                else:
-                                    del pingReplyMap[src_ip]
-                                    print("Dropped packet: Maximum number of pings reached.")
+                                send_message(src_ip, dst_ip, message, newInterface)
                         # No destination IP in ARP Table
                         else:
                             print(f"Packet dropped, destination IP not in ARP Table {dst_ip}")
