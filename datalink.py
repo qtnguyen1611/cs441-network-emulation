@@ -7,31 +7,31 @@ def handle_ethernet_frame(frame, curr_MAC):
     :param frame: The received Ethernet frame as bytes.
     :param curr_MAC: The current MAC address.
 
-    It extracts the source and destination MAC addresses, data length, and data from the frame.
-    Data here can consist of Ethernet frame and IP packet inside.
-    Returns IP packet if the destination MAC address matches the current MAC address.
-    Otherwise, it drops the frame.
+    It extracts the source and destination MAC addresses, data length, packet type and data from the frame.
+    Data here can consist of Ethernet frame and IP packet / ARP packet inside.
+    Returns IP packet / ARP packet depending on packet type.
+    Drops frame if destination MAC has no match and is not a broadcast MAC or its a unkown packet type.
     """
     src_mac = frame[:2].decode()
     dst_mac = frame[2:4].decode()
     data_length = frame[4]
-    # Ethernet Frame Data, the IP Packet is inside the Ethernet Frame
-    # Consist of the entire IP Packet
-    data = frame[5:]
+    packet_type_byte = frame[5]  # ADDED new field to differentiate the packet type
+    data = frame[6:]
     print("--DataLink layer--")
     print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}")
-    
-    # Check if destination MAC is is current MAC / broadcast MAC
-    if dst_mac == curr_MAC:
-        print(f"MAC Address matches, processing IP Packet")
-        return (data, "IP")
-    elif dst_mac == "FF":
-        print(f"Broadcast MAC Address, processing ARP Packet")
-        return (data, "ARP")
+
+    if dst_mac == curr_MAC or dst_mac == "FF":
+        if packet_type_byte == 0:
+            return data, "IP"
+        elif packet_type_byte == 1:
+            return data, "ARP"
+        else:
+            print(f"Unknown packet type: {packet_type_byte}")
+            return None, None
     else:
         print(f"MAC addresses not matched. Dropped frame: {frame.hex()}")
-        return None
-    
+        return None, None
+
 def handle_sniffed_ethernet_frame(frame):
     """
     Handles a received sniffed Ethernet frame.
@@ -51,7 +51,7 @@ def handle_sniffed_ethernet_frame(frame):
     
     return data
     
-def form_ethernet_frame(src_mac, dst_mac, data):
+def form_ethernet_frame(src_mac, dst_mac, data, packet_type):
     """
     Forms an Ethernet frame with the source and destination MAC addresses and data.
 
@@ -59,10 +59,12 @@ def form_ethernet_frame(src_mac, dst_mac, data):
         src_mac: The source MAC address as a string.
         dst_mac: The destination MAC address as a string.
         data: The data to be sent as bytes.
+        packet_type: The packet type as a string. (0 for "IP" packets, 1 for "ARP" packets)
     """
     print("--DataLink layer--")
     print(f"Ethernet frame: src_mac: {src_mac}, dst_mac: {dst_mac}, data length: {len(data)}, data: {data}")
-    return src_mac.encode() + dst_mac.encode() + bytes([len(data)]) + data
+    type_byte = bytes([0]) if packet_type == "IP" else bytes([1])
+    return src_mac.encode() + dst_mac.encode() + bytes([len(data)]) + type_byte + data
 
 def form_arp_frame(operation, sender_mac, sender_ip, target_mac, target_ip):
     """
@@ -75,7 +77,8 @@ def form_arp_frame(operation, sender_mac, sender_ip, target_mac, target_ip):
         target_mac: The target MAC address as a string.
         target_ip: The target IP address as a string.
     """
-    print(f"ARP packet: operation: {operation}, sender_mac: {sender_mac}, sender_ip: {sender_ip}, target_mac: {target_mac}, target_ip: {target_ip}")
+    print("--FORM ARP packet--")
+    print(f"operation: {operation}, sender_mac: {sender_mac}, sender_ip: {sender_ip}, target_mac: {target_mac}, target_ip: {target_ip}")
     arp_packet = bytes([operation]) + sender_mac.encode() + bytes([int(sender_ip, 16)]) + target_mac.encode() + bytes([int(target_ip, 16)])
 
     """
@@ -83,11 +86,11 @@ def form_arp_frame(operation, sender_mac, sender_ip, target_mac, target_ip):
     
     :param
         src_mac: The sender MAC address as a string.
-        dst_mac: The broadcast MAC address as a string.
+        dst_mac: The broadcast MAC or target MAC address as a string.
         data: The arp packet.
+        packet_type: The packet type as a string. ("IP" / "ARP")
     """
-    broadcast_mac = "FF"
-    return form_ethernet_frame(sender_mac, broadcast_mac, arp_packet)
+    return form_ethernet_frame(sender_mac, target_mac, arp_packet, "ARP")
     
 def handle_arp_packet(arp_packet):
     """
@@ -99,5 +102,6 @@ def handle_arp_packet(arp_packet):
     sender_ip = '0x' + hex(struct.unpack('B', arp_packet[3:4])[0]).upper()[-2:]
     target_mac = arp_packet[4:6].decode()
     target_ip = '0x' + hex(struct.unpack('B', arp_packet[6:7])[0]).upper()[-2:]
+    print("--HANDLE ARP packet--")
     print(f"ARP packet: operation: %d, sender_mac: %s, sender_ip: %s, target_mac: %s, target_ip: %s", operation, sender_mac, sender_ip, target_mac, target_ip)
     return [operation, sender_mac, sender_ip, target_mac, target_ip]

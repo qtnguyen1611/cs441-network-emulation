@@ -72,41 +72,117 @@ def add_pending_message(dst_ip, src_ip, message):
     pending_messages[dst_ip].append((src_ip, message))
 
 def process_frame(frame):
+    """
+    Processes an Ethernet frame received from the socket.
+    Handles both sniffing mode and normal operation mode.
+    
+    Args:
+        frame (bytes): The raw Ethernet frame data
+    """
     if sniffing_status:
-        ip_packet = handle_sniffed_ethernet_frame(frame)
-        data = handle_sniffed_ip_packet(ip_packet)
-        src_ip, dst_ip, protocol, message = data
-        print(f"Packet Sniffed from: {src_ip} -> {dst_ip}, protocol: {protocol}, message: {message}")
+        process_sniffed_frame(frame)
     else:
-        decapsulation_result = handle_ethernet_frame(frame, N3_MAC)
-        if decapsulation_result:
-            packet, type = decapsulation_result
-            if packet:
-                if type == "IP":
-                    data = handle_ip_packet(packet, N3_IP)
-                    if data:
-                        src_ip, protocol, message = data
-                        if firewall_status:
-                            process_with_firewall(src_ip, protocol, message)
-                        else:
-                            process_without_firewall(src_ip, protocol, message)
-                elif type == "ARP":
-                    data = handle_arp_packet(packet)
-                    if data:
-                        operation, sender_mac, sender_ip, target_mac, target_ip = data
-                        # Update ARP table regardless if its a request or reply
-                        arp_table[sender_ip] = sender_mac
-                        print("ARP Table contents:")
-                        for ip, mac in arp_table.items():
-                            print(f"IP: {ip}, MAC: {mac}")
-                        
-                        # Send ARP reply in respond to ARP request or send pending messages upon receiving ARP reply
-                        if operation == 1:
-                            if target_ip == N3_IP:
-                                ethernet_frame = form_arp_frame(2, N3_MAC, N3_IP, sender_mac, sender_ip)
-                                send_packet(ethernet_frame)
-                        elif operation == 2:
-                            send_pending_messages()
+        process_normal_frame(frame)
+
+def process_sniffed_frame(frame):
+    """
+    Processes a frame in sniffing mode, extracting and displaying packet information
+    without filtering by destination MAC.
+    
+    Args:
+        frame (bytes): The raw Ethernet frame data
+    """
+    ip_packet = handle_sniffed_ethernet_frame(frame)
+    data = handle_sniffed_ip_packet(ip_packet)
+    src_ip, dst_ip, protocol, message = data
+    print(f"Packet Sniffed from: {src_ip} -> {dst_ip}, protocol: {protocol}, message: {message}")
+
+def process_normal_frame(frame):
+    """
+    Processes a frame in normal operation mode, filtering by destination MAC.
+    
+    Args:
+        frame (bytes): The raw Ethernet frame data
+    """
+    decapsulation_result = handle_ethernet_frame(frame, N3_MAC)
+    if not decapsulation_result:
+        return
+        
+    packet, packet_type = decapsulation_result
+    if not packet:
+        return
+        
+    if packet_type == "IP":
+        process_ip_packet(packet)
+    elif packet_type == "ARP":
+        process_arp_packet(packet)
+
+def process_ip_packet(packet):
+    """
+    Processes an IP packet extracted from an Ethernet frame.
+    Applies firewall rules if firewall is enabled.
+    
+    Args:
+        packet (bytes): The IP packet data
+    """
+    data = handle_ip_packet(packet, N3_IP)
+    if not data:
+        return
+        
+    src_ip, protocol, message = data
+    
+    if firewall_status:
+        process_with_firewall(src_ip, protocol, message)
+    else:
+        process_without_firewall(src_ip, protocol, message)
+
+def process_arp_packet(packet):
+    """
+    Processes an ARP packet extracted from an Ethernet frame.
+    Handles both ARP requests (operation=1) and replies (operation=2).
+    
+    Args:
+        packet (bytes): The ARP packet data
+    """
+    data = handle_arp_packet(packet)
+    if not data:
+        return
+        
+    operation, sender_mac, sender_ip, target_mac, target_ip = data
+    
+    # Update ARP table regardless if request or reply
+    update_arp_table(sender_ip, sender_mac)
+    
+    # Handle ARP request
+    if operation == 1 and target_ip == N3_IP:
+        send_arp_reply(sender_mac, sender_ip)
+    # Handle ARP reply
+    elif operation == 2:
+        send_pending_messages()
+
+def update_arp_table(ip, mac):
+    """
+    Updates the ARP table with a new IP-MAC mapping and prints the current table.
+    
+    Args:
+        ip (str): The IP address
+        mac (str): The MAC address
+    """
+    arp_table[ip] = mac
+    print("--ARP Table contents--")
+    for ip, mac in arp_table.items():
+        print(f"IP: {ip}, MAC: {mac}")
+
+def send_arp_reply(requester_mac, requester_ip):
+    """
+    Sends an ARP reply to a node that requested our MAC address.
+    
+    Args:
+        requester_mac (str): The MAC address of the requesting node
+        requester_ip (str): The IP address of the requesting node
+    """
+    ethernet_frame = form_arp_frame(2, N3_MAC, N3_IP, requester_mac, requester_ip)
+    send_packet(ethernet_frame)
 
 def send_pending_messages():
     """
@@ -116,6 +192,7 @@ def send_pending_messages():
     """
     for dst_ip, messages in pending_messages.items():
         for src_ip, message in messages:
+            print("--SEND PENDING MESSAGES--")
             print(f"Destination IP: {dst_ip}, Source IP: {src_ip}, Message: {message}")
             send_message(dst_ip, message)
         # Clear all messages for destination IP after sending
@@ -168,7 +245,7 @@ def send_message(dst_ip, message):
     if target_ip in arp_table.keys():
         target_mac = arp_table[target_ip]
         ip_packet = form_ip_packet(N3_IP, dst_ip, 0, message)
-        ethernet_frame = form_ethernet_frame(N3_MAC, target_mac, ip_packet)
+        ethernet_frame = form_ethernet_frame(N3_MAC, target_mac, ip_packet, "IP")
         send_packet(ethernet_frame)
     else:
         # Need ARP for target
@@ -180,7 +257,8 @@ def send_message(dst_ip, message):
 def send_packet(ethernet_frame):
     # Broadcast to all nodes
     for macAddr in port_table.keys():
-        print(f"Sending Ethernet Frame to {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {ethernet_frame.hex()}")
+        print("--Sending Ethernet Frame--")
+        print(f"Destination Mac: {macAddr}, Destination Port: {port_table[macAddr]} , Frame: {ethernet_frame.hex()}")
         sock.sendto(ethernet_frame, ("127.0.0.1", port_table[macAddr]))
 
 def start_node():

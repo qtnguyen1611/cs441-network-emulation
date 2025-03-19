@@ -12,7 +12,7 @@ R2_MAC = "R2"
 R1_IP = "0x11"
 R2_IP = "0x21"
 
-# ARP Table
+# ARP Table empty by default
 arp_table = {
     # IP: MAC
     
@@ -49,6 +49,13 @@ nodes_to_router_mapping = {
     "N3": "R2"
 }
 
+nodesIP_to_router_mapping = {
+    # Nodes IP : Router MAC
+    "0x1A": "R1",
+    "0x2A": "R2",
+    "0x2B": "R2"
+}
+
 shutdown_event = threading.Event()
 peers_r1 = [("127.0.0.1", 1500)]  # IP and port of node1
 peers_r2 = [("127.0.0.1", 1510), ("127.0.0.1", 1511)]  # IP and port of node2, and node3
@@ -59,8 +66,11 @@ interface_mapping = {
     R2_MAC: R2_IP
 }
 
-pending_messages = {} # Store the messages while arp is resolving
-SAME_SUBNET_IPS = ["0x1A", "0x11", "0x21", "0x2A", "0x2B"]  # IPs that are directly reachable
+# Store the messages while arp is resolving
+pending_messages = {} 
+
+# IPs that are directly reachable
+SAME_SUBNET_IPS = ["0x1A", "0x11", "0x21", "0x2A", "0x2B"]  
 
 def handle_peer(sock, interface):
     """
@@ -82,149 +92,143 @@ def handle_peer(sock, interface):
             break
         
 # Function to add a message to the pending_messages dictionary
-def add_pending_message(dst_ip, src_ip, message):
+def add_pending_message(dst_ip, src_ip, message, protocol):
     if dst_ip not in pending_messages:
         pending_messages[dst_ip] = []
-    pending_messages[dst_ip].append((src_ip, message))
-    
+    pending_messages[dst_ip].append((src_ip, message, protocol))
+
+def update_arp_table(ip, mac):
+    """Update ARP table with new IP-MAC mapping"""
+    arp_table[ip] = mac
+    print("--ARP Table contents--")
+    for ip, mac in arp_table.items():
+        print(f"IP: {ip}, MAC: {mac}")
+
 def process_frame(frame, interface):
+    """
+        Processes an Ethernet frame received from the socket.
+        Ethernet frame may contain an IP packet or an ARP packet.
+    """
     decapsulation_result = handle_ethernet_frame(frame, interface)
-    if decapsulation_result:
-        packet, type = decapsulation_result
-        if packet:
-            if type == "IP":
-                data = router_handle_ip_packet(packet)
-                if data:
-                    src_ip, dst_ip, protocol, message = data
-                    if dst_ip in arp_table.keys():
-                        handle_known_destination(src_ip, dst_ip, protocol, message)
-                    
-                    # By default there is no destination IP in ARP Table
-                    else:
-                        # Check if ip address is valid ?
-                        if dst_ip in SAME_SUBNET_IPS:
-                            # Make the arp  request for the mac address of destination IP and store messsage in pending_messages
-                            # Need ARP for destination
-                            add_pending_message(dst_ip, src_ip, message)
-                            if dst_ip == "0x1A":
-                                ethernet_frame = form_arp_frame(1, R1_MAC, R1_IP, "FF", dst_ip)
-                                broadcast_frame(ethernet_frame, R1_MAC)
-                            else:
-                                ethernet_frame = form_arp_frame(1, R2_MAC, R2_IP, "FF", dst_ip)
-                                broadcast_frame(ethernet_frame, R2_MAC)
-                        else:
-                            print(f"Packet dropped, destination IP not in ARP Table {dst_ip}")
-            elif type == "ARP":
-                print("ARP packet is detected")
-                data = handle_arp_packet(packet)
-                if data:
-                    operation, sender_mac, sender_ip, target_mac, target_ip = data
-                    arp_table[sender_ip] = sender_mac # Update ARP table regardless if its a request or reply
-                    # Print the arp_table for debugging
-                    print("ARP Table contents:")
-                    for ip, mac in arp_table.items():
-                        print(f"IP: {ip}, MAC: {mac}")
-                        
-                    if operation == 1:
-                        if target_ip == R1_IP:
-                            # Send ARP reply in respond to sender ARP request
-                            ethernet_frame = form_arp_frame(2, R1_MAC, R1_IP, sender_mac, sender_ip)
-                            send_packet(ethernet_frame, interface)
-                        elif target_ip == R2_IP:
-                            # Send ARP reply in respond to sender ARP request
-                            ethernet_frame = form_arp_frame(2, R2_MAC, R2_IP, sender_mac, sender_ip)
-                            send_packet(ethernet_frame, interface)
-                    elif operation == 2:  # ARP Reply
-                        send_pending_messages()
+    if not decapsulation_result:
+        return
+        
+    packet, packet_type = decapsulation_result
+    if not packet:
+        return
+        
+    if packet_type == "IP":
+        process_ip_packet(packet, interface)
+    elif packet_type == "ARP":
+        process_arp_packet(packet, interface)
+
+def process_ip_packet(packet, interface):
+    """
+    Decapsulates the IP packet, and try to sends the message.
+    """
+    data = router_handle_ip_packet(packet)
+    if not data:
+        return
+    src_ip, dst_ip, protocol, message = data
+    send_message(src_ip, dst_ip, protocol, message)
+
+def process_arp_packet(packet, interface):
+    """
+    Decapsulates the ARP packet.
+    Check ARP request or reply. (operation == 1 for request, 2 for reply)
+    If ARP request, send ARP reply.
+    If ARP reply, check and try to send packet that previously couldn't be sent out due to missing ARP.
+    """
+    data = handle_arp_packet(packet)
+    if not data:
+        return
+        
+    operation, sender_mac, sender_ip, target_mac, target_ip = data
+    update_arp_table(sender_ip, sender_mac)
+    
+    if operation == 1:
+        handle_arp_request(target_ip, sender_mac, sender_ip, interface)
+    elif operation == 2:
+        send_pending_messages()
+
+def handle_arp_request(target_ip, sender_mac, sender_ip, interface):
+    """Handle ARP request by sending appropriate ARP reply"""
+    if interface == R1_MAC:
+        ethernet_frame = form_arp_frame(2, R1_MAC, R1_IP, sender_mac, sender_ip)
+        send_packet(ethernet_frame, interface)
+    elif interface == R2_MAC:
+        ethernet_frame = form_arp_frame(2, R2_MAC, R2_IP, sender_mac, sender_ip)
+        send_packet(ethernet_frame, interface)
+    else:
+        print("Invalid interface for ARP request")
 
 def send_pending_messages():
     """
     Send any pending messages stored in the pending_messages dictionary.
     This function iterates over all destination IPs and their corresponding messages,
-    sends each message, and then clears the messages for that destination IP.
+    Sends each message, and then clears the messages for that destination IP.
     """
-    print("send pending messages....")
     for dst_ip, messages in pending_messages.items():
-        for src_ip, message in messages:
+        # Router MAC
+        for src_ip, message, protocol in messages:
+            print("--SEND PENDING MESSAGES--")
             print(f"Destination IP: {dst_ip}, Source IP: {src_ip}, Message: {message}")
-            send_message(dst_ip, src_ip, message)
+            send_message(src_ip, dst_ip, protocol, message)
         # Clear all messages for destination IP after sending
         pending_messages[dst_ip] = []
 
-def handle_known_destination(src_ip, dst_ip, protocol, message):
-    print(f"Destination IP in ARP Table {dst_ip}")
-    
-    # Check which exit to use based on node to router mapping
-    # Compare against arp_table and get the value
-    dst_mac = arp_table[dst_ip]
-
-    # Use this value to compare against key for nodes_to_router_mapping and get the value
-    # This value is the exit interface to use
-    new_interface = nodes_to_router_mapping[dst_mac]
-    print(f"Interface to use: {new_interface} \n")
-
-    # Forward the packet to the correct destination IP with the data
-    if protocol == 0:
-        send_message(src_ip, dst_ip, message)
-
-def send_message(src_ip, dst_ip, message):
+def send_message(src_ip, dst_ip, protocol, message):
     """
     Forward a message to a destination IP address.
     
-    This function takes in a destination IP address and a message as arguments.
-    It check if the destination IP address is in the same subnet. If it is, it
-    retrieves the destination MAC address from the ARP table and forms the ethernet
-    frame with the IP packet. If the destination IP address is not in the ARP table,
-    it send arp request for destination mac address.
+    This function use destination IP address to determine the Router MAC address and IP address
+    Next it check if we have the MAC address for destination IP address in the ARP table.
+    If it does, it forms the ethernet frame with the IP packet. 
+    If it doesn't, it sends an ARP request for the destination MAC address only if the destination IP address is in the same subnet.
     
-    If the destination IP address is in different subnet, it check if router ip address 
-    is in the ARP table. If the router IP address is not in the ARP table,
-    it send arp request for router mac address.
-    
-    Message not send will be buffered into pending_messages
-
-    It then passes the ethernet frame to send_packet to send the message.
     Args:
+        src_ip (str): The source IP address as a string.
         dst_ip (str): The destination IP address as a string.
+        protocol (int): The protocol number as an integer. (0 for ICMP)
         message (str): The message to be sent as a string.
     """
-    ip = R2_IP
-    mac = R2_MAC
-    if dst_ip == "0x1A":
-        ip = R1_IP
-        mac = R1_MAC
-    print("the info: ", ip, mac)
-    
-    # Direct routing
-    if dst_ip in arp_table.keys():
-        dst_mac = arp_table[dst_ip]
-        ip_packet = form_ip_packet(src_ip, dst_ip, 0, message)
-        ethernet_frame = form_ethernet_frame(mac, dst_mac, ip_packet)
-        send_packet(ethernet_frame, mac)
+    routerMac = nodesIP_to_router_mapping[dst_ip]
+    routerIP = interface_mapping[routerMac]
+
+    if dst_ip in arp_table:
+        if protocol == 0:
+            print(f"--Destination IP in ARP Table {dst_ip}--")
+            # Check which exit to use based on node to router mapping
+            # Compare against arp_table and get the value
+            dst_mac = arp_table[dst_ip]
+            # Use this value to compare against key for nodes_to_router_mapping and get the value
+            # This value is the exit interface to use
+            print(f"Interface to use: {routerMac} \n")
+            ip_packet = form_ip_packet(src_ip, dst_ip, 0, message)
+            ethernet_frame = form_ethernet_frame(routerMac, dst_mac, ip_packet, "IP")
+            send_packet(ethernet_frame, routerMac)
+    elif dst_ip in SAME_SUBNET_IPS:
+        """Handle IP packets for destinations in the same subnet but not in ARP table"""
+        add_pending_message(dst_ip, src_ip, message, protocol)
+        ethernet_frame = form_arp_frame(1, routerMac, routerIP, "FF", dst_ip)
+        send_packet(ethernet_frame, routerMac)    
     else:
-        # Need ARP for destination
-        add_pending_message(dst_ip, src_ip, message)
-        ethernet_frame = form_arp_frame(1, mac, ip, "FF", dst_ip)
-        broadcast_frame(ethernet_frame, mac)
+        print(f"Packet dropped, destination IP not in ARP Table {dst_ip}")
 
 def send_packet(ethernet_frame, interface):
     # Broadcast to all nodes
     for nodesMac in nodes_to_router_mapping.keys():
         # Check the table for the correct exit port
         if nodes_to_router_mapping[nodesMac] == interface:
-            print(f"Sending Ethernet Frame to {nodesMac} , Destination Port: {port_table[nodesMac]} , Frame: {ethernet_frame}")
+            print("--Sending Ethernet Frame--")
+            print(f"Destination Mac: {nodesMac} , Destination Port: {port_table[nodesMac]} , Frame: {ethernet_frame}")
             sock.sendto(ethernet_frame, ("127.0.0.1", port_table[nodesMac]))
 
 # Not used atm
 def broadcast_frame(frame, interface):
     print(f"Broadcasting frame on {interface}: {frame.hex()}")
-    if interface == R1_MAC:
-        for peer in peers_r1:
-            sock.sendto(frame, peer)
-    elif interface == R2_MAC:
-        for peer in peers_r2:
-            sock.sendto(frame, peer)
-    
+    for peer in peers_r2 + peers_r1:
+        sock.sendto(frame, peer)
 
 def start_router():
     host = '127.0.0.1'
