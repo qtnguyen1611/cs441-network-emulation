@@ -226,18 +226,23 @@ def send_spoofed_packet(src_ip, dst_ip, message):
         dst_ip (str): The destination IP address as a hexadecimal string.
         message (str): The message to be sent as a string.
     """
-    # Check IP Addr against ARP Table
-    ip_packet = form_ip_packet(src_ip, dst_ip, 0, message)
-    if dst_ip in arp_table.keys():
-        dst_mac = arp_table[dst_ip]
-        print(f"Destination IP found in ARP Table, dst_mac: {dst_mac} \n")
-        ethernet_frame = form_ethernet_frame(N1_MAC, dst_mac, ip_packet, "IP")
+    if dst_ip in SAME_SUBNET_IPS:
+        # Direct routing - same subnet
+        target_ip = dst_ip
     else:
-        # Set Destination MAC to Router
-        print(f"Destination IP not found in ARP Table, sending to Router \n")
-        dst_mac = "R1"
-        ethernet_frame = form_ethernet_frame(N1_MAC, dst_mac, ip_packet, "IP")
-    send_packet(ethernet_frame)
+        # Route through router
+        target_ip = ROUTER_IP
+
+    if target_ip in arp_table.keys():
+        target_mac = arp_table[target_ip]
+        ip_packet = form_ip_packet(src_ip, dst_ip, 0, message)
+        ethernet_frame = form_ethernet_frame(N1_MAC, target_mac, ip_packet, "IP")
+        send_packet(ethernet_frame)
+    else:
+        # Need ARP for target
+        add_pending_message(dst_ip, src_ip, message)
+        ethernet_frame = form_arp_frame(1, N1_MAC, src_ip, "FF", target_ip)
+        send_packet(ethernet_frame)
 
 def start_node():
     host = '127.0.0.1'

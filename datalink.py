@@ -45,9 +45,10 @@ def handle_sniffed_ethernet_frame(frame):
     src_mac = frame[:2].decode()
     dst_mac = frame[2:4].decode()
     data_length = frame[4]
+    packet_type_byte = frame[5]  # ADDED new field to differentiate the packet type
     # Ethernet Frame Data, the IP Packet is inside the Ethernet Frame
     # Consist of the entire IP Packet
-    data = frame[5:]
+    data = frame[6:]
     
     return data
     
