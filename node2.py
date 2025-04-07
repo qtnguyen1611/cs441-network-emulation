@@ -98,8 +98,8 @@ def process_ip_packet(packet):
     """
     data = handle_ip_packet(packet, N2_IP)
     if data:
-        src_ip, protocol, message = data
-        process_protocol(src_ip, protocol, message)
+        src_ip, protocol, msg_type, message = data
+        process_protocol(src_ip, protocol, msg_type, message)
 
 def process_arp_packet(packet):
     """
@@ -164,16 +164,14 @@ def send_pending_messages():
         # Clear all messages for destination IP after sending
         pending_messages[dst_ip] = []
 
-def process_protocol(src_ip, protocol, message):
+def process_protocol(src_ip, protocol, msg_type, message):
     if protocol == 0:
-        if src_ip not in pingReplyMap:
-            pingReplyMap[src_ip] = 1
-            send_message(src_ip, message)
+        if msg_type == 0:
+            send_message(src_ip, message, 8)
         else:
-            del pingReplyMap[src_ip]
             print("Dropped packet: Maximum number of pings reached.")
         
-def send_message(dst_ip, message):
+def send_message(dst_ip, message, msg_type=0):
     """
     Sends an message to a destination IP address.
     
@@ -200,7 +198,7 @@ def send_message(dst_ip, message):
 
     if target_ip in arp_table.keys():
         target_mac = arp_table[target_ip]
-        ip_packet = form_ip_packet(N2_IP, dst_ip, 0, message)
+        ip_packet = form_ip_packet(N2_IP, dst_ip, 0, msg_type, message)
         ethernet_frame = form_ethernet_frame(N2_MAC, target_mac, ip_packet, "IP")
         send_packet(ethernet_frame)
     else:
@@ -236,7 +234,7 @@ def start_node():
         if userinput.strip():
             if userinput.startswith("send"):
                 _, dst_ip_str, message = userinput.split(" ", 2)
-                send_message(dst_ip_str, message)
+                send_message(dst_ip_str, message, 0)
             else:
                 print("Invalid command. Please try again.")
 

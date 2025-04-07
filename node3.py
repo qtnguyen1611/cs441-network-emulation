@@ -94,8 +94,8 @@ def process_sniffed_frame(frame):
     """
     ip_packet = handle_sniffed_ethernet_frame(frame)
     data = handle_sniffed_ip_packet(ip_packet)
-    src_ip, dst_ip, protocol, message = data
-    print(f"Packet Sniffed from: {src_ip} -> {dst_ip}, protocol: {protocol}, message: {message}")
+    src_ip, dst_ip, protocol, msg_type, message = data
+    print(f"Packet Sniffed from: {src_ip} -> {dst_ip}, protocol: {protocol}, msg_type: {msg_type}, message: {message}")
 
 def process_normal_frame(frame):
     """
@@ -129,12 +129,12 @@ def process_ip_packet(packet):
     if not data:
         return
         
-    src_ip, protocol, message = data
+    src_ip, protocol, msg_type, message = data
     
     if firewall_status:
-        process_with_firewall(src_ip, protocol, message)
+        process_with_firewall(src_ip, protocol, msg_type, message)
     else:
-        process_without_firewall(src_ip, protocol, message)
+        process_without_firewall(src_ip, protocol, msg_type, message)
 
 def process_arp_packet(packet):
     """
@@ -198,26 +198,24 @@ def send_pending_messages():
         # Clear all messages for destination IP after sending
         pending_messages[dst_ip] = []
 
-def process_with_firewall(src_ip, protocol, message):
+def process_with_firewall(src_ip, protocol, msg_type, message):
     action = check_firewall_rules(src_ip, N3_IP, protocol)
     if action == "allow":
-        process_protocol(src_ip, protocol, message)
+        process_protocol(src_ip, protocol, msg_type, message)
     else:
         print(f"Dropped packet from {src_ip} : Firewall rule denied.")
 
-def process_without_firewall(src_ip, protocol, message):
-    process_protocol(src_ip, protocol, message)
+def process_without_firewall(src_ip, protocol, msg_type, message):
+    process_protocol(src_ip, protocol, msg_type, message)
 
-def process_protocol(src_ip, protocol, message):
+def process_protocol(src_ip, protocol, msg_type, message):
     if protocol == 0:
-        if src_ip not in pingReplyMap:
-            pingReplyMap[src_ip] = 1
-            send_message(src_ip, message)
+        if msg_type == 0:
+            send_message(src_ip, message, 8)
         else:
-            del pingReplyMap[src_ip]
             print("Dropped packet: Maximum number of pings reached.")
         
-def send_message(dst_ip, message):
+def send_message(dst_ip, message, msg_type=0):
     """
     Sends an message to a destination IP address.
     
@@ -244,7 +242,7 @@ def send_message(dst_ip, message):
 
     if target_ip in arp_table.keys():
         target_mac = arp_table[target_ip]
-        ip_packet = form_ip_packet(N3_IP, dst_ip, 0, message)
+        ip_packet = form_ip_packet(N3_IP, dst_ip, 0, msg_type, message)
         ethernet_frame = form_ethernet_frame(N3_MAC, target_mac, ip_packet, "IP")
         send_packet(ethernet_frame)
     else:
@@ -288,7 +286,7 @@ def start_node():
         if userinput.strip():
             if userinput.startswith("send"):
                 _, dst_ip_str, message = userinput.split(" ", 2)
-                send_message(dst_ip_str, message)
+                send_message(dst_ip_str, message, 0)
             elif userinput.startswith("on firewall"):
                 firewall_status = True
                 print("Firewall is now on.")

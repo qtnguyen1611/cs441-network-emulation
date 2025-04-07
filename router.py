@@ -129,8 +129,8 @@ def process_ip_packet(packet, interface):
     data = router_handle_ip_packet(packet)
     if not data:
         return
-    src_ip, dst_ip, protocol, message = data
-    send_message(src_ip, dst_ip, protocol, message)
+    src_ip, dst_ip, protocol, msg_type, message = data
+    send_message(src_ip, dst_ip, protocol, message, msg_type)
 
 def process_arp_packet(packet, interface):
     """
@@ -177,7 +177,7 @@ def send_pending_messages():
         # Clear all messages for destination IP after sending
         pending_messages[dst_ip] = []
 
-def send_message(src_ip, dst_ip, protocol, message):
+def send_message(src_ip, dst_ip, protocol, message, msg_type=0):
     """
     Forward a message to a destination IP address.
     
@@ -204,7 +204,7 @@ def send_message(src_ip, dst_ip, protocol, message):
             # Use this value to compare against key for nodes_to_router_mapping and get the value
             # This value is the exit interface to use
             print(f"Interface to use: {routerMac} \n")
-            ip_packet = form_ip_packet(src_ip, dst_ip, 0, message)
+            ip_packet = form_ip_packet(src_ip, dst_ip, 0, msg_type, message)
             ethernet_frame = form_ethernet_frame(routerMac, dst_mac, ip_packet, "IP")
             send_packet(ethernet_frame, routerMac)
     elif dst_ip in SAME_SUBNET_IPS:

@@ -19,15 +19,16 @@ def handle_ip_packet(packet, curr_IP):
     dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
     # Only can return Protocol 0 - Ping
     protocol = packet[2]
-    data_length = packet[3]
-    data = packet[4:5+data_length]
+    msg_type = packet[3]
+    data_length = packet[4]
+    data = packet[5:6+data_length]
     data = data.decode('utf-8')
 
-    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data} \n")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, msg_type: {msg_type}, data_length: {data_length}, data: {data} \n")
     
     if dst_ip == curr_IP:
         print(f"IP Address matches, processing IP Packet")
-        return [src_ip, protocol, data]
+        return [src_ip, protocol, msg_type, data]
     else:
         print(f"IP addresses not matched. Dropped packet.")
         return None
@@ -48,11 +49,12 @@ def handle_sniffed_ip_packet(packet):
     dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
     # Only can return Protocol 0 - Ping
     protocol = packet[2]
-    data_length = packet[3]
-    data = packet[4:5+data_length]
+    msg_type = packet[3]
+    data_length = packet[4]
+    data = packet[5:6+data_length]
     data = data.decode('utf-8')
 
-    return [src_ip, dst_ip, protocol, data]
+    return [src_ip, dst_ip, protocol, msg_type, data]
 
 
 def router_handle_ip_packet(packet):
@@ -70,16 +72,17 @@ def router_handle_ip_packet(packet):
     dst_ip = '0x' + hex(struct.unpack('B', packet[1:2])[0]).upper()[-2:]
     # Only can return Protocol 0 - Ping
     protocol = packet[2]
-    data_length = packet[3]
-    data = packet[4:5+data_length]
+    msg_type = packet[3]
+    data_length = packet[4]
+    data = packet[5:6+data_length]
     data = data.decode('utf-8')
 
-    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, data_length: {data_length}, data: {data} \n")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, msg_type: {msg_type}, data_length: {data_length}, data: {data} \n")
     
-    return [src_ip, dst_ip, protocol, data]
+    return [src_ip, dst_ip, protocol, msg_type, data]
 
     
-def form_ip_packet(src_ip, dst_ip, protocol, message):
+def form_ip_packet(src_ip, dst_ip, protocol, msg_type, message):
     """
     Forms an IP packet with the source and destination IP addresses, protocol,
     and message.
@@ -98,4 +101,4 @@ def form_ip_packet(src_ip, dst_ip, protocol, message):
     Returns:
         bytes: The formed IP packet as a byte sequence.
     """
-    return bytes([int(src_ip, 16), int(dst_ip, 16), protocol, len(message)]) + message.encode()
+    return bytes([int(src_ip, 16), int(dst_ip, 16), protocol, msg_type, len(message)]) + message.encode()
