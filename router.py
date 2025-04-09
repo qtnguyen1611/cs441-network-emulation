@@ -153,10 +153,10 @@ def process_arp_packet(packet, interface):
 
 def handle_arp_request(target_ip, sender_mac, sender_ip, interface):
     """Handle ARP request by sending appropriate ARP reply"""
-    if interface == R1_MAC:
+    if target_ip == R1_IP:
         ethernet_frame = form_arp_frame(2, R1_MAC, R1_IP, sender_mac, sender_ip)
         send_packet(ethernet_frame, interface)
-    elif interface == R2_MAC:
+    elif target_ip == R2_IP:
         ethernet_frame = form_arp_frame(2, R2_MAC, R2_IP, sender_mac, sender_ip)
         send_packet(ethernet_frame, interface)
     else:
