@@ -8,7 +8,11 @@ def run_in_terminal(script_name):
         subprocess.Popen(["start", "cmd", "/k", f"python {script_name}"], shell=True)
     elif sys.platform == "darwin":
         # macOS (uses 'osascript' to open a new Terminal tab)
-        subprocess.Popen(["osascript", "-e", f'tell application "Terminal" to do script "python3 {script_name}"'])
+        current_dir = subprocess.check_output("pwd", shell=True).decode().strip()
+        subprocess.Popen([
+            "osascript", "-e",
+            f'tell application "Terminal" to do script "cd \\"{current_dir}\\"; python3 {script_name}"'
+        ])
     else:
         # Linux (uses 'gnome-terminal' or 'x-terminal-emulator')
         subprocess.Popen(["gnome-terminal", "--", "bash", "-c", f"python3 {script_name}; exec bash"])
