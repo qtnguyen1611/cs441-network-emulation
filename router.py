@@ -37,7 +37,10 @@ port_table = {
     "N2": 1510,
     
     # Node 3
-    "N3": 1511
+    "N3": 1511,
+    
+    # Attacker Node
+    "N4" : 1512
 }
 
 # Router to Nodes Mapping
@@ -46,14 +49,16 @@ nodes_to_router_mapping = {
     # Nodes MAC : Router MAC
     "N1": "R1",
     "N2": "R2",
-    "N3": "R2"
+    "N3": "R2",
+    "N4": "R2"
 }
 
 nodesIP_to_router_mapping = {
     # Nodes IP : Router MAC
     "0x1A": "R1",
     "0x2A": "R2",
-    "0x2B": "R2"
+    "0x2B": "R2",
+    "0x1C": "R2"
 }
 
 shutdown_event = threading.Event()
@@ -70,7 +75,7 @@ interface_mapping = {
 pending_messages = {} 
 
 # IPs that are directly reachable
-SAME_SUBNET_IPS = ["0x1A", "0x11", "0x21", "0x2A", "0x2B"]  
+SAME_SUBNET_IPS = ["0x1A", "0x11", "0x21", "0x2A", "0x2B", "0x1C"]  
 
 def handle_peer(sock, interface):
     """

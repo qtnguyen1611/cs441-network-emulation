@@ -14,7 +14,7 @@ def run_in_terminal(script_name):
         subprocess.Popen(["gnome-terminal", "--", "bash", "-c", f"python3 {script_name}; exec bash"])
 
 if __name__ == "__main__":
-    scripts = ["node1.py", "router.py", "node2.py", "node3.py"]  # Replace with actual script names
+    scripts = ["node1.py", "router.py", "node2.py", "node3.py", "attackerNode1.py"]  # Replace with actual script names
     
     for script in scripts:
         run_in_terminal(script)

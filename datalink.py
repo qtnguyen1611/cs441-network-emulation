@@ -18,7 +18,7 @@ def handle_ethernet_frame(frame, curr_MAC):
     packet_type_byte = frame[5]  # ADDED new field to differentiate the packet type
     data = frame[6:]
     print("--DataLink layer--")
-    print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}")
+    print(f"Received frame: {frame.hex()}, from {src_mac}, meant for {dst_mac}, data length: {data_length}, packet type: {packet_type_byte}, data: {data.hex()}")
 
     if dst_mac == curr_MAC or dst_mac == "FF":
         if packet_type_byte == 0:
@@ -63,7 +63,7 @@ def form_ethernet_frame(src_mac, dst_mac, data, packet_type):
         packet_type: The packet type as a string. (0 for "IP" packets, 1 for "ARP" packets)
     """
     print("--DataLink layer--")
-    print(f"Ethernet frame: src_mac: {src_mac}, dst_mac: {dst_mac}, data length: {len(data)}, data: {data}")
+    print(f"Forming Ethernet frame: src_mac: {src_mac}, dst_mac: {dst_mac}, data length: {len(data)}, data: {data}")
     type_byte = bytes([0]) if packet_type == "IP" else bytes([1])
     return src_mac.encode() + dst_mac.encode() + bytes([len(data)]) + type_byte + data
 

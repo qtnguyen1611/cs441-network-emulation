@@ -53,6 +53,9 @@ def handle_sniffed_ip_packet(packet):
     data_length = packet[4]
     data = packet[5:6+data_length]
     data = data.decode('utf-8')
+    
+    print(f"IP addresses not matched I also accept.")
+    print(f"src_ip: {src_ip}, dst_ip: {dst_ip}, protocol: {protocol}, msg_type: {msg_type}, data_length: {data_length}, data: {data} \n")
 
     return [src_ip, dst_ip, protocol, msg_type, data]
 

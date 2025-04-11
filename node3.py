@@ -29,7 +29,10 @@ port_table = {
     # Router 2
     "R2": 1530,
     # Node 2
-    "N2": 1510
+    "N2": 1510,
+    # Attacker Node
+    "N4" : 1512
+    
 }
 
 # Handles the number of ping reply to a specific IP
@@ -40,7 +43,7 @@ peers = [("127.0.0.1", 1510), ('127.0.0.1', 1530)]  # IP and port of node1 and n
 
 ROUTER_IP = "0x21" # Store gateway IP
 pending_messages = {} # Store messages while arp is resolving
-SAME_SUBNET_IPS =  ["0x21", "0x2A"] # Help decide if packet need to send to router 
+SAME_SUBNET_IPS =  ["0x21", "0x2A", "0x1C"] # Help decide if packet need to send to router 
 
 def handle_peer(sock):
     """

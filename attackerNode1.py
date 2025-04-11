@@ -1,16 +1,21 @@
 import socket
 import threading
 from datalink import handle_ethernet_frame, form_ethernet_frame, handle_arp_packet, form_arp_frame
-from network import handle_ip_packet, form_ip_packet
+from network import handle_sniffed_ip_packet, form_ip_packet
 
-# Node2's MAC and IP addresses
-N2_MAC = "N2"
-N2_IP = "0x2A"
+# Declare global variables at the top of the script
+requester_ip = None
+requester_mac = None
+
+# Attacker's MAC and IP addresses
+attacker_MAC = "N4"
+attacker_IP = "0x1C"
 
 # ARP Table
 arp_table = {
     # IP: MAC
-    
+    # Node2
+    # "0x2A": "N2",
     # Node3
     # "0x2B": "N3",
     # Router
@@ -21,13 +26,12 @@ arp_table = {
 # Have to ensure the MAC -> Port mapping is correct
 port_table = {
     # MAC : Socket
-    
+    # Node 2
+    "N2":1510,
     # Router 2
     "R2": 1530,
     # Node 3
-    "N3": 1511,
-    # Attacker Node
-    "N4" : 1512
+    "N3": 1511
 }
 
 # Handles the number of ping reply to a specific IP
@@ -40,7 +44,7 @@ peers = [("127.0.0.1", 1511), ('127.0.0.1', 1530)]  # IP and port of node1 and n
 
 ROUTER_IP = "0x21" # Store gateway IP
 pending_messages = {} # Store the messages while arp is resolving
-SAME_SUBNET_IPS = ["0x21", "0x2B", "0x1C"]  # Help decide if packet need to send to router 
+SAME_SUBNET_IPS = ["0x21", "0x2A", "0x2B"]  # Help decide if packet need to send to router 
 
 def handle_peer(sock):
     """
@@ -61,14 +65,14 @@ def handle_peer(sock):
             break
 
 # Function to add a message to the pending_messages dictionary
-def add_pending_message(dst_ip, src_ip, message):
+def add_pending_message(dst_ip, src_ip, msg_type, message):
     """
     Function to store messages that cannnot be sent out due to missing ARP records.
     Stored messages are sent out once ARP are resolve.
     """
     if dst_ip not in pending_messages:
         pending_messages[dst_ip] = []
-    pending_messages[dst_ip].append((src_ip, message))
+    pending_messages[dst_ip].append((src_ip, msg_type, message))
 
 def process_frame(frame):
     """
@@ -78,7 +82,7 @@ def process_frame(frame):
     Args:
         frame (bytes): The raw Ethernet frame data
     """
-    decapsulation_result = handle_ethernet_frame(frame, N2_MAC)
+    decapsulation_result = handle_ethernet_frame(frame, attacker_MAC)
     if not decapsulation_result:
         return
         
@@ -98,10 +102,10 @@ def process_ip_packet(packet):
     Args:
         packet (bytes): The IP packet data
     """
-    data = handle_ip_packet(packet, N2_IP)
+    data = handle_sniffed_ip_packet(packet)
     if data:
-        src_ip, protocol, msg_type, message = data
-        process_protocol(src_ip, protocol, msg_type, message)
+        src_ip, dst_ip, protocol, msg_type, message = data
+        process_protocol(dst_ip, src_ip, protocol, msg_type, message)
 
 def process_arp_packet(packet):
     """
@@ -121,7 +125,7 @@ def process_arp_packet(packet):
     update_arp_table(sender_ip, sender_mac)
     
     # Handle ARP request
-    if operation == 1 and target_ip == N2_IP:
+    if operation == 1 and target_ip == attacker_IP:
         send_arp_reply(sender_mac, sender_ip)
     # Handle ARP reply
     elif operation == 2:
@@ -148,9 +152,19 @@ def send_arp_reply(requester_mac, requester_ip):
         requester_mac (str): The MAC address of the requesting node
         requester_ip (str): The IP address of the requesting node
     """
-    ethernet_frame = form_arp_frame(2, N2_MAC, N2_IP, requester_mac, requester_ip)
+    ethernet_frame = form_arp_frame(2, attacker_MAC, attacker_IP, requester_mac, requester_ip)
     send_packet(ethernet_frame)
 
+def send_gratitous_arp(requester_ip, requester_mac):
+    """
+    Sends an ARP reply to a node that requested our MAC address.
+    
+    Args:
+        requester_mac (str): The MAC address of the requesting node
+        requester_ip (str): The IP address of the requesting node
+    """
+    ethernet_frame = form_arp_frame(2, attacker_MAC, requester_ip, requester_mac, requester_ip)
+    send_packet(ethernet_frame)
 
 def send_pending_messages():
     """
@@ -159,21 +173,20 @@ def send_pending_messages():
     sends each message, and then clears the messages for that destination IP.
     """
     for dst_ip, messages in pending_messages.items():
-        for src_ip, message in messages:
+        for src_ip, message_type, message in messages:
             print("--SEND PENDING MESSAGES--")
             print(f"Destination IP: {dst_ip}, Source IP: {src_ip}, Message: {message}")
-            send_message(dst_ip, message)
+            send_message(src_ip, dst_ip, message, message_type) # relaying message type
         # Clear all messages for destination IP after sending
         pending_messages[dst_ip] = []
 
-def process_protocol(src_ip, protocol, msg_type, message):
+def process_protocol(dst_ip, src_ip, protocol, msg_type, message):
     if protocol == 0:
-        if msg_type == 0:
-            send_message(src_ip, message, 8)
-        else:
-            print("Dropped packet: Maximum number of pings reached.")
+        # no drop for ping as i am just forwarding
+        send_message(src_ip, dst_ip, message, msg_type)
         
-def send_message(dst_ip, message, msg_type=0):
+        
+def send_message(src_ip, dst_ip, message, msg_type=0):
     """
     Sends an message to a destination IP address.
     
@@ -191,6 +204,7 @@ def send_message(dst_ip, message, msg_type=0):
         dst_ip (str): The destination IP address as a string.
         message (str): The message to be sent as a string.
     """
+    
     if dst_ip in SAME_SUBNET_IPS:
         # Direct routing - same subnet
         target_ip = dst_ip
@@ -200,13 +214,14 @@ def send_message(dst_ip, message, msg_type=0):
 
     if target_ip in arp_table.keys():
         target_mac = arp_table[target_ip]
-        ip_packet = form_ip_packet(N2_IP, dst_ip, 0, msg_type, message)
-        ethernet_frame = form_ethernet_frame(N2_MAC, target_mac, ip_packet, "IP")
+        # Modify the message to show modification done by the attacker
+        ip_packet = form_ip_packet(src_ip, dst_ip, 0, msg_type, message + "HACK")
+        ethernet_frame = form_ethernet_frame(attacker_MAC, target_mac, ip_packet, "IP")
         send_packet(ethernet_frame)
     else:
         # Need ARP for target
-        add_pending_message(dst_ip, N2_IP, message)
-        ethernet_frame = form_arp_frame(1, N2_MAC, N2_IP, "FF", target_ip)
+        add_pending_message(dst_ip, src_ip, msg_type, message)
+        ethernet_frame = form_arp_frame(1, attacker_MAC, src_ip, "FF", target_ip)
         send_packet(ethernet_frame)
         
 
@@ -218,8 +233,10 @@ def send_packet(ethernet_frame):
         sock.sendto(ethernet_frame, ("127.0.0.1", port_table[macAddr]))
 
 def start_node():
+    global requester_ip, requester_mac  # Declare them as global inside the function
+    
     host = '127.0.0.1'
-    port = 1510
+    port = 1512
 
     global sock
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -227,16 +244,24 @@ def start_node():
 
     threading.Thread(target=handle_peer, args=(sock,)).start()
 
-    print("Hello! Welcome to Node 2.\n")
+    print("Hello! Welcome to Attacker Node.\n")
     print("Instructions:\n")
     print("  1. Type 'send <destination IP> <message>' to send a message to a specific node\n")
+    print("  2. Type 'ARP <target_ip> <FF/specific_mac>' to ARP poison. \n")
+    print("     Example: ARP 0x2B FF will broadcast to everyone that attacker MAC address N4 will be associated to 0x2B.\n")
+    print("     Example: ARP 0x2B N2 will ARP update N2 that attacker MAC address N4 will be associated to 0x2B.\n")
 
     while not shutdown_event.is_set():
         userinput = input('> \n')
         if userinput.strip():
             if userinput.startswith("send"):
                 _, dst_ip_str, message = userinput.split(" ", 2)
-                send_message(dst_ip_str, message, 0)
+                send_message(dst_ip_str, message)
+            elif userinput.startswith("ARP"):
+                print("ARP Poisoning...")
+                # FORM GRATITOUS ARP PACKET AND SEND IT OUT
+                _, requester_ip, requester_mac = userinput.split(" ", 2)
+                send_gratitous_arp(requester_ip, requester_mac)
             else:
                 print("Invalid command. Please try again.")
 
