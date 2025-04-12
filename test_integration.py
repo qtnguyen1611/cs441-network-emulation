@@ -21,7 +21,8 @@ class TestNetworkIntegration(unittest.TestCase):
                     stdin=subprocess.PIPE,  # Enable stdin for sending input
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
-                    text=True
+                    text=True,
+                    shell=True
                 )
                 cls.processes[script] = process
                 cls.logs[script] = log_file
