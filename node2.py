@@ -141,6 +141,8 @@ def update_arp_table(ip, mac):
     for ip, mac in arp_table.items():
         print(f"IP: {ip}, MAC: {mac}")
 
+    sys.stdout.flush()
+
 def send_arp_reply(requester_mac, requester_ip):
     """
     Sends an ARP reply to a node that requested our MAC address.
@@ -164,6 +166,7 @@ def send_pending_messages():
             print("--SEND PENDING MESSAGES--")
             print(f"Destination IP: {dst_ip}, Source IP: {src_ip}, Message: {message}")
             send_message(dst_ip, message)
+            sys.stdout.flush()
         # Clear all messages for destination IP after sending
         pending_messages[dst_ip] = []
 
@@ -173,6 +176,7 @@ def process_protocol(src_ip, protocol, msg_type, message):
             send_message(src_ip, message, 8)
         else:
             print("Dropped packet: Maximum number of pings reached.")
+            sys.stdout.flush()
         
 def send_message(dst_ip, message, msg_type=0):
     """
@@ -217,6 +221,7 @@ def send_packet(ethernet_frame):
         print("--Sending Ethernet Frame--")
         print(f"Destination Mac: {macAddr} , Destination Port: {port_table[macAddr]} , Frame: {ethernet_frame.hex()}")
         sock.sendto(ethernet_frame, ("127.0.0.1", port_table[macAddr]))
+        sys.stdout.flush()
 
 def start_node():
     host = '127.0.0.1'
