@@ -1,4 +1,5 @@
 import socket
+import sys
 import threading
 from datalink import handle_ethernet_frame, form_ethernet_frame, handle_sniffed_ethernet_frame, handle_arp_packet, form_arp_frame
 from network import handle_ip_packet, handle_sniffed_ip_packet, form_ip_packet
@@ -285,35 +286,39 @@ def start_node():
     print("  6. Type 'stop sniffing' to turn off sniffing\n")
 
     while not shutdown_event.is_set():
-        userinput = input('> \n')
-        if userinput.strip():
-            if userinput.startswith("send"):
-                _, dst_ip_str, message = userinput.split(" ", 2)
-                send_message(dst_ip_str, message, 0)
-            elif userinput.startswith("on firewall"):
-                firewall_status = True
-                print("Firewall is now on.")
-            elif userinput.startswith("off firewall"):
-                firewall_status = False
-                print("Firewall is now off.")
-            elif userinput.startswith("add firewall rule"):
-                _, _, _, src_ip, dst_ip, protocol, action = userinput.split(" ", 6)
-                new_rule = {
-                    "src_ip": src_ip,
-                    "dst_ip": dst_ip,
-                    "protocol": int(protocol),
-                    "action": action
-                }
-                push_firewall_rule(new_rule)
-                print(f"Firewall rule added: {new_rule}")
-            elif userinput.startswith("start sniffing"):
-                sniffing_status = True
-                print("Sniffing started...")
-            elif userinput.startswith("stop sniffing"):
-                sniffing_status = False
-                print("Sniffing stopped...")
-            else:
-                print("Invalid command. Please try again.")
+        try:
+            # Use sys.stdin.readline() instead of input()
+            userinput = sys.stdin.readline().strip()
+            if userinput:
+                if userinput.startswith("send"):
+                    _, dst_ip_str, message = userinput.split(" ", 2)
+                    send_message(dst_ip_str, message, 0)
+                elif userinput.startswith("on firewall"):
+                    firewall_status = True
+                    print("Firewall is now on.")
+                elif userinput.startswith("off firewall"):
+                    firewall_status = False
+                    print("Firewall is now off.")
+                elif userinput.startswith("add firewall rule"):
+                    _, _, _, src_ip, dst_ip, protocol, action = userinput.split(" ", 6)
+                    new_rule = {
+                        "src_ip": src_ip,
+                        "dst_ip": dst_ip,
+                        "protocol": int(protocol),
+                        "action": action
+                    }
+                    push_firewall_rule(new_rule)
+                    print(f"Firewall rule added: {new_rule}")
+                elif userinput.startswith("start sniffing"):
+                    sniffing_status = True
+                    print("Sniffing started...")
+                elif userinput.startswith("stop sniffing"):
+                    sniffing_status = False
+                    print("Sniffing stopped...")
+                else:
+                    print("Invalid command. Please try again.")
+        except EOFError:
+            break
 
     sock.close()
 

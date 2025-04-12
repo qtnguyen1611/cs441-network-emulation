@@ -1,4 +1,5 @@
 import socket
+import sys
 import threading
 from datalink import handle_ethernet_frame, form_ethernet_frame, handle_arp_packet, form_arp_frame
 from network import handle_ip_packet, form_ip_packet
@@ -232,13 +233,17 @@ def start_node():
     print("  1. Type 'send <destination IP> <message>' to send a message to a specific node\n")
 
     while not shutdown_event.is_set():
-        userinput = input('> \n')
-        if userinput.strip():
-            if userinput.startswith("send"):
-                _, dst_ip_str, message = userinput.split(" ", 2)
-                send_message(dst_ip_str, message, 0)
-            else:
-                print("Invalid command. Please try again.")
+        try:
+            # Use sys.stdin.readline() instead of input()
+            userinput = sys.stdin.readline().strip()
+            if userinput:
+                if userinput.startswith("send"):
+                    _, dst_ip_str, message = userinput.split(" ", 2)
+                    send_message(dst_ip_str, message, 0)
+                else:
+                    print("Invalid command. Please try again.")
+        except EOFError:
+            break
 
     sock.close()
 

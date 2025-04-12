@@ -1,5 +1,6 @@
 import socket
 import struct
+import sys
 import threading
 from datalink import handle_ethernet_frame, form_ethernet_frame, handle_arp_packet, form_arp_frame
 from network import handle_ip_packet, form_ip_packet
@@ -258,17 +259,19 @@ def start_node():
     print("  2. Type 'spoof <source IP> <destination IP> <message>' to send a message to specified node\n")
 
     while not shutdown_event.is_set():
-        userinput = input('> \n')
-        if userinput.strip():
-            if userinput.startswith("send"):
-                _, dst_ip_str, message = userinput.split(" ", 2)
-                send_message(dst_ip_str, message, 0)
-            elif userinput.startswith("spoof"):
-                _, src_ip_str, dst_ip_str, message = userinput.split(" ", 3)
-                send_spoofed_packet(src_ip_str, dst_ip_str, message, 0)
-            else:
-                print("Invalid command. Please try again.")
-
+        try:
+            userinput = sys.stdin.readline().strip()
+            if userinput:
+                if userinput.startswith("send"):
+                    _, dst_ip_str, message = userinput.split(" ", 2)
+                    send_message(dst_ip_str, message, 0)
+                elif userinput.startswith("spoof"):
+                    _, src_ip_str, dst_ip_str, message = userinput.split(" ", 3)
+                    send_spoofed_packet(src_ip_str, dst_ip_str, message, 0)
+                else:
+                    print("Invalid command. Please try again.")
+        except EOFError:
+            break
 
     sock.close()
 
