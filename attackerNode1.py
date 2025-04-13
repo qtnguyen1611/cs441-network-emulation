@@ -221,7 +221,7 @@ def send_message(src_ip, dst_ip, message, msg_type=0):
     else:
         # Need ARP for target
         add_pending_message(dst_ip, src_ip, msg_type, message)
-        ethernet_frame = form_arp_frame(1, attacker_MAC, src_ip, "FF", target_ip)
+        ethernet_frame = form_arp_frame(1, attacker_MAC, attacker_IP, "FF", target_ip) # attacker uses his own ip and mac for arp lookup request; which might result in duplicate
         send_packet(ethernet_frame)
         
 
