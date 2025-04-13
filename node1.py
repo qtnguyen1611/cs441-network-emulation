@@ -155,7 +155,12 @@ def send_pending_messages():
         for src_ip, message in messages:
             print("--SEND PENDING MESSAGES--")
             print(f"Destination IP: {dst_ip}, Source IP: {src_ip}, Message: {message}")
-            send_message(dst_ip, message)
+            if src_ip != N1_IP:
+                # Send the message with the correct source IP
+                send_spoofed_packet(src_ip, dst_ip, message)
+            else:
+                # Send the message with the node's own source IP
+                send_message(dst_ip, message)
         # Clear all messages for destination IP after sending
         pending_messages[dst_ip] = []
 
